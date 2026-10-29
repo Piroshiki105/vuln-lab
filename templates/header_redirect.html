@@ -1,0 +1,38 @@
+{{template "header" .}}
+<h1>HTTPヘッダインジェクション: リダイレクト</h1>
+<p>ログイン後などに「元のページへ戻る」ためのリダイレクト先を指定できる画面です。
+Go の <code>net/http</code> は本来この種の注入を防ぎますが、この画面は <code>http.Hijacker</code> で
+生のTCP接続を乗っ取ってレスポンスを自分で組み立てており、その保護が働きません。</p>
+
+<form method="get" action="/header/redirect">
+  <p><label>リダイレクト先 <input name="next" size="40" placeholder="/"></label>
+  <button type="submit">移動</button></p>
+</form>
+<p><small>この欄に <code>%0D%0A</code> という文字をそのまま入力しても、ブラウザが <code>%</code> を
+さらにエンコードしてしまうため届きません。URLバーに直接貼り付けるか、下のボタンを使ってください。</small></p>
+
+<h2>ワンクリックで試す</h2>
+<a class="btn" href="/header/redirect?next=%2F%0D%0ASet-Cookie%3A%20admin%3Dtrue">Set-Cookieを注入する</a>
+<a class="btn" href="/header/redirect?next=%2F%0D%0A%0D%0A%3Chtml%3E%3Cbody%3E%3Ch1%3EINJECTED%20(response%20splitting)%3C%2Fh1%3E%3C%2Fbody%3E%3C%2Fhtml%3E">ページ内容ごと差し替える</a>
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>「Set-Cookieを注入する」のリンク先は <code>next=/%0D%0ASet-Cookie: admin=true</code>(URLデコードすると改行)です。レスポンスヘッダに注目してください(<code>curl -i</code> や devtools の Network タブ)。</li>
+    <li><code>curl -i "http://127.0.0.1:8080/header/redirect?next=%2F%0D%0ASet-Cookie%3A%20admin%3Dtrue"</code> を実行すると、サーバーが返した生のレスポンスをそのまま確認できます。</li>
+    <li>改行をもう一つ重ねて空行(ヘッダの終端)まで注入すると、その後ろに書いた内容が丸ごとレスポンスの本文として扱われます。「ページ内容ごと差し替える」ボタンで確認してください。</li>
+    <li>末尾に <code>Connection: close</code> のような文字列がそのまま表示されることがあります。これは、注入によってヘッダが早く終わってしまった後、サーバー側の後続処理がそのまま本文として出力されてしまうためです。実際の攻撃でもよく見られる現象です。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>HTTPはヘッダとボディを <code>\r\n</code>(CRLF)で区切って解釈します。ヘッダの値に利用者の入力をそのまま連結すると、入力に含まれる改行がヘッダの区切りとして解釈され、任意のヘッダの追加(<code>Set-Cookie</code> によるセッション固定化、キャッシュ制御ヘッダの偽装など)や、ヘッダを早期に終端させてのレスポンス本文の注入(反射型XSS、ページの改ざん)につながります。プロキシやキャッシュサーバーを経由する構成では、1つのTCP接続に偽のレスポンスをまるごと紛れ込ませ、別の利用者への応答をすり替える「レスポンス分割」として、より深刻な被害(キャッシュ汚染)に発展することもあります。</p>
+  <p>対策は次のとおりです。</p>
+  <ul>
+    <li><strong>標準のAPIをそのまま使う</strong>: Go の <code>net/http</code> は <code>w.Header().Set</code> や <code>http.Redirect</code> を使う限り、ヘッダ値の改行を検証して防いでくれる。今回のように <code>http.Hijacker</code> で生のレスポンスを自作しない。</li>
+    <li><strong>入力に改行を含めない</strong>: リダイレクト先などヘッダに使う値は、改行を含んでいないか検証する。</li>
+    <li><strong>リダイレクト先の許可リスト化</strong>: 自サイト内の固定パス、または許可したドメインのみを受け付ける(オープンリダイレクト対策にもなる)。</li>
+  </ul>
+</details>
+{{template "footer" .}}

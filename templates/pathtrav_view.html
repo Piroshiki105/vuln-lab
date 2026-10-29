@@ -1,0 +1,52 @@
+{{template "header" .}}
+<h1>パストラバーサル: ファイル閲覧</h1>
+<p>マルチテナント構成を模した画面です。あなたは <strong>{{.OrgName}}</strong>(組織ID: {{.OrgID}})としてログインしている想定で、
+自組織のディレクトリ(<code>{{.OrgDir}}</code>)の文書しか見えないはずです。
+公開文書: <a href="/path/view?file=welcome.txt">welcome.txt</a> / <a href="/path/view?file=faq.txt">faq.txt</a></p>
+
+<form method="get" action="/path/view">
+  <p><label>ファイル名 <input name="file" value="{{.File}}" size="40"></label>
+  <button type="submit">表示</button></p>
+</form>
+
+<h2>ワンクリックで試す</h2>
+<a class="btn" href="/path/view?file=..%2Forg2%2Fcontract.txt">他組織の文書を見る</a>
+<a class="btn" href="/path/view?file=..%2F..%2Fsecret%2Fapi_key.txt">プロジェクト外の秘密ファイルを見る</a>
+
+{{if .Path}}
+<h2>読み込んだパス</h2>
+<pre>{{.Path}}</pre>
+{{end}}
+{{if .Content}}
+<h2>内容</h2>
+<pre>{{.Content}}</pre>
+{{end}}
+{{if .Error}}
+<p style="color:#b00020"><strong>エラー:</strong> <code>{{.Error}}</code></p>
+{{end}}
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li><code>..</code> は「一つ上のディレクトリ」を表します。自組織のディレクトリ(<code>{{.OrgDir}}</code>)の外のファイルを指せないでしょうか?</li>
+    <li>組織IDが連番(1, 2, ...)であることは画面の表示から推測できます。<code>../org2/contract.txt</code> のように、他組織のディレクトリ名を推測して直接指定してみましょう。</li>
+    <li>さらに上の階層へ出れば、<code>docs/</code> の外、プロジェクト直下の <code>go.mod</code> や <code>secret/</code> ディレクトリにも届きます。</li>
+    <li>十分に <code>../</code> を重ねれば、OS の <code>/etc/passwd</code> にも届きます。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>入力されたファイル名をそのままパスに連結すると、<code>../</code> で公開ディレクトリの外へ出られます。マルチテナントのアプリでは特に深刻で、他のテナント(組織・顧客)のディレクトリに保存された文書や設定ファイルを読み取られる、横断的な情報漏えいにつながります。さらに上の階層まで遡れれば、ソースコード、認証情報、OS のファイルなども対象になります。</p>
+  <p>対策は次のとおりです。</p>
+  <ul>
+    <li><strong>ベースディレクトリ配下か検証</strong>: <code>filepath.Join</code> と <code>filepath.Clean</code> で正規化した結果が、許可したディレクトリの配下かを確認する。</li>
+    <li><strong>ルートを固定</strong>: Go 1.24 以降は <code>os.Root</code>(<code>os.OpenRoot</code>)で、ルート外へのアクセスを封じられる。<code>http.FileServer</code> + <code>http.Dir</code> も利用できる。</li>
+    <li><strong>許可リスト</strong>: ファイル名を ID にマッピングし、利用者に生のパスを指定させない。</li>
+    <li><strong>テナント分離の二重化</strong>: パスの検証に加え、アプリ側でも「このファイルが自分のテナントの所有物か」をDB等で確認する。ディレクトリ名を組織IDから単純に作らず、推測しにくい識別子にする。</li>
+    <li><strong>権限の最小化</strong>: アプリの実行ユーザーが読める範囲を絞る。</li>
+  </ul>
+</details>
+
+<p><a href="/cmdi/ping">→ ping(コマンドインジェクション)へ</a></p>
+{{template "footer" .}}

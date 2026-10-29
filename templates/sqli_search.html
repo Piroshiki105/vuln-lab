@@ -1,0 +1,57 @@
+{{template "header" .}}
+<h1>SQLインジェクション: 商品検索</h1>
+<p>公開中の商品を検索できます。非公開の商品や、他のテーブルの情報まで見られるでしょうか?</p>
+
+<form method="get" action="/sqli/search">
+  <label>商品名 <input name="q" value="{{.Q}}" size="40"></label>
+  <button type="submit">検索</button>
+</form>
+
+<h2>ワンクリックで試す</h2>
+<a class="btn" href="/sqli/search?q=%27%20OR%201%3D1%20--">非公開商品を見る</a>
+<a class="btn" href="/sqli/search?q=zzz%27%20UNION%20SELECT%20id%2C%20username%2C%20password%2C%20role%20FROM%20accounts%20--">accounts を盗む(UNION)</a>
+<a class="btn" href="/sqli/search?q=zzz%27%20UNION%20SELECT%201%2C%20name%2C%20sql%2C%200%20FROM%20sqlite_master%20--">テーブル構造を調べる</a>
+
+{{if .Query}}
+<h2>実行されたSQL</h2>
+<pre>{{.Query}}</pre>
+{{end}}
+
+{{if .Error}}
+<p style="color:#b00020"><strong>DBエラー:</strong> <code>{{.Error}}</code></p>
+{{end}}
+
+{{if .Searched}}
+<table border="1" cellpadding="6">
+  <thead><tr><th>ID</th><th>商品名</th><th>説明</th><th>価格</th></tr></thead>
+  <tbody>
+  {{range .Products}}
+    <tr><td>{{.ID}}</td><td>{{.Name}}</td><td>{{.Description}}</td><td>{{.Price}}</td></tr>
+  {{else}}
+    <tr><td colspan="4">該当する商品がありません</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>まず <code>'</code> を入れてエラーを出し、SQLの構造を推測してみましょう。</li>
+    <li><code>is_public = 1</code> の条件を、<code>OR</code> と <code>--</code> で無効化できないでしょうか?</li>
+    <li><code>UNION SELECT</code> を使うと、別のテーブルの結果を同じ表に混ぜられます。列数(ここでは4列)を合わせる必要があります。</li>
+    <li>テーブル名・列名が分からないときは、SQLite の <code>sqlite_master</code> テーブルを調べます。</li>
+    <li><code>accounts</code> テーブルのユーザー名とパスワードを表示させてみましょう。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>検索語がSQL文に連結されているため、攻撃者は <code>WHERE</code> 条件を崩して非公開データを読んだり、<code>UNION</code> で無関係なテーブル(認証情報など)を引き出したりできます。エラーメッセージの表示は、攻撃者にDB構造のヒントを与えます。</p>
+  <p>対策は <strong>プレースホルダ</strong> です。<code>LIKE</code> でも
+  <code>db.Query("SELECT ... WHERE is_public = 1 AND name LIKE ?", "%"+q+"%")</code>
+  のように、ワイルドカード込みの値をバインド変数として渡します。さらに、DBユーザーの権限を最小化し、エラー詳細はログにのみ残します。</p>
+</details>
+
+<p><a href="/sqli/login">→ ログインへ</a></p>
+{{template "footer" .}}

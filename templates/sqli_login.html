@@ -1,0 +1,63 @@
+{{template "header" .}}
+<h1>SQLインジェクション: ログイン</h1>
+<p>ユーザー名とパスワードでログインするフォームです。正しいパスワードを知らなくてもログインできるでしょうか?</p>
+
+<form method="post" action="/sqli/login">
+  <p><label>ユーザー名 <input name="username" value="{{.Username}}" size="30"></label></p>
+  <p><label>パスワード <input name="password" type="text" size="30"></label></p>
+  <p><button type="submit">ログイン</button></p>
+</form>
+
+<h2>ワンクリックで試す</h2>
+<p>裏で下の入力をそのまま送信します。</p>
+<form method="post" action="/sqli/login" style="display:inline">
+  <input type="hidden" name="username" value="admin'--">
+  <input type="hidden" name="password" value="anything">
+  <button class="btn" type="submit">認証回避(コメントアウト)</button>
+</form>
+<form method="post" action="/sqli/login" style="display:inline">
+  <input type="hidden" name="username" value="nobody">
+  <input type="hidden" name="password" value="' OR '1'='1">
+  <button class="btn" type="submit">認証回避(OR条件)</button>
+</form>
+<form method="post" action="/sqli/login" style="display:inline">
+  <input type="hidden" name="username" value="'">
+  <input type="hidden" name="password" value="x">
+  <button class="btn" type="submit">エラー誘発</button>
+</form>
+
+{{if .Query}}
+<h2>実行されたSQL</h2>
+<pre>{{.Query}}</pre>
+{{end}}
+
+{{if .Result}}
+<p style="color:green"><strong>ログイン成功:</strong> {{.Result.Username}}(権限: {{.Result.Role}}, ID: {{.Result.ID}})</p>
+{{end}}
+{{if .Failed}}
+<p style="color:#b00020"><strong>ログイン失敗:</strong> ユーザー名またはパスワードが違います。</p>
+{{end}}
+{{if .Error}}
+<p style="color:#b00020"><strong>DBエラー:</strong> <code>{{.Error}}</code></p>
+{{end}}
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>ユーザー名に <code>'</code>(シングルクォート)を1つだけ入れるとどうなるでしょう?</li>
+    <li>SQLの <code>--</code> 以降はコメントになります。パスワード条件を無効化できないでしょうか?</li>
+    <li>ユーザー名が <code>admin</code> であることは分かっているものとします。</li>
+    <li>パスワード欄だけで <code>OR</code> を使う方法も考えてみましょう。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>入力値をSQL文字列に連結すると、入力に含まれる <code>'</code> や <code>--</code> がSQLの構文として解釈され、攻撃者が条件式そのものを書き換えられます。認証の回避、データの窃取・改ざん・削除につながります。</p>
+  <p>対策は <strong>プレースホルダ(バインド変数)</strong> を使うことです。Go では
+  <code>db.QueryRow("SELECT ... WHERE username = ? AND password = ?", username, password)</code>
+  のように値を別引数で渡します。加えて、パスワードはハッシュ化(bcrypt 等)して保存し、DBエラーを画面に出さないようにします。</p>
+</details>
+
+<p><a href="/sqli/search">→ 商品検索へ</a></p>
+{{template "footer" .}}

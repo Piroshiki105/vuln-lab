@@ -1,0 +1,15 @@
+{{template "header" .}}
+<h1>vuln-lab</h1>
+<p>脆弱性を体験して学ぶための、意図的に脆弱なアプリケーションです。</p>
+<ul>
+  <li><a href="/users">ユーザー一覧</a>(組織ごとの一覧表示)</li>
+  <li>SQLインジェクション: <a href="/sqli/login">ログイン</a> / <a href="/sqli/search">商品検索</a></li>
+  <li>XSS: <a href="/xss/reflected">反射型</a> / <a href="/xss/board">格納型(掲示板)</a></li>
+  <li>CSRF: <a href="/csrf/login">ログイン / アカウント</a>(罠ページは <a href="http://127.0.0.1:9090/">127.0.0.1:9090</a>)</li>
+  <li><a href="/cmdi/ping">コマンドインジェクション(ping)</a> / <a href="/path/view">パストラバーサル(ファイル閲覧)</a></li>
+  <li>メールヘッダインジェクション: <a href="/mail/contact">お問い合わせフォーム</a></li>
+  <li>HTTPヘッダインジェクション: <a href="/header/redirect">リダイレクト</a></li>
+</ul>
+</main>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{{template "header" .}}
+<h1>コマンドインジェクション: ping</h1>
+<p>ホスト名を入力すると、サーバーが <code>ping</code> を1回実行して結果を表示します。ping 以外のコマンドも実行させられるでしょうか?</p>
+
+<form method="get" action="/cmdi/ping">
+  <p><label>ホスト <input name="host" value="{{.Host}}" size="40" placeholder="127.0.0.1"></label>
+  <button type="submit">ping</button></p>
+</form>
+
+<h2>ワンクリックで試す</h2>
+<a class="btn" href="/cmdi/ping?host=127.0.0.1%3B%20id">コマンド注入(id)</a>
+<a class="btn" href="/cmdi/ping?host=127.0.0.1%20%26%26%20cat%20%2Fetc%2Fhostname">コマンド注入(&amp;&amp; cat)</a>
+
+{{if .Command}}
+<h2>実行されたコマンド</h2>
+<pre>{{.Command}}</pre>
+<h2>出力</h2>
+<pre>{{.Output}}</pre>
+{{end}}
+{{if .Err}}
+<p style="color:#b00020"><strong>終了ステータス:</strong> <code>{{.Err}}</code></p>
+{{end}}
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>シェルでは <code>;</code> や <code>&amp;&amp;</code> でコマンドを続けて書けます。</li>
+    <li><code>127.0.0.1</code> の後ろに <code>id</code> や <code>ls</code> を続けるとどうなるでしょう?</li>
+    <li><code>$(...)</code> や バッククォートも、シェルが先に評価します。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>入力値をシェルのコマンド文字列に連結すると、入力に含まれる <code>;</code> <code>&amp;&amp;</code> <code>|</code> <code>$()</code> などがシェルの構文として解釈され、攻撃者がサーバー上で任意のコマンドを実行できます。情報の窃取、ファイルの改ざん、サーバーの乗っ取りにつながります。</p>
+  <p>対策は次のとおりです。</p>
+  <ul>
+    <li><strong>シェルを経由しない</strong>: Go では <code>exec.Command("ping", "-c", "1", host)</code> のように、コマンドと引数を分けて渡す(<code>sh -c</code> を使わない)。</li>
+    <li><strong>入力の検証</strong>: ホスト名は許可リスト(英数字・<code>.</code>・<code>-</code> のみ等)で検証する。先頭が <code>-</code> の値はオプションとして解釈されるため拒否する。</li>
+    <li><strong>そもそも外部コマンドを避ける</strong>: ライブラリ(<code>net</code> パッケージ等)で代替できないか検討する。</li>
+    <li><strong>権限の最小化</strong>: アプリの実行ユーザーの権限を絞る。</li>
+  </ul>
+</details>
+
+<p><a href="/path/view">→ ファイル閲覧(パストラバーサル)へ</a></p>
+{{template "footer" .}}

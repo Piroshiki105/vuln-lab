@@ -1,0 +1,20 @@
+{{template "header" .}}
+<h1>{{.OrgName}} のユーザー一覧</h1>
+<table border="1" cellpadding="6">
+  <thead>
+    <tr><th>ID</th><th>名前</th><th>メール</th><th>作成日時</th></tr>
+  </thead>
+  <tbody>
+  {{range .Users}}
+    <tr>
+      <td>{{.ID}}</td>
+      <td>{{.Name}}</td>
+      <td>{{.Email}}</td>
+      <td>{{.CreatedAt}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="4">ユーザーがいません</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{template "footer" .}}

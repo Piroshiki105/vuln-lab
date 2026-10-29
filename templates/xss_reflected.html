@@ -1,0 +1,36 @@
+{{template "header" .}}
+<h1>XSS: 反射型</h1>
+<p>キーワード検索の画面です。入力した文字列が、そのまま結果の画面に表示されます。ページ内で JavaScript を実行できるでしょうか?</p>
+
+<form method="get" action="/xss/reflected">
+  <label>キーワード <input name="q" size="40"></label>
+  <button type="submit">検索</button>
+</form>
+
+<h2>ワンクリックで試す</h2>
+<a class="btn" href="/xss/reflected?q=%3Cimg%20src%3Dx%20onerror%3Dalert(document.cookie)%3E">Cookieを表示する</a>
+<a class="btn" href="/xss/reflected?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E">スクリプトを実行する</a>
+
+{{if .Searched}}
+<h2>検索結果</h2>
+<p>「{{.Q}}」に一致する項目は見つかりませんでした。</p>
+{{end}}
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>キーワードに <code>&lt;b&gt;太字&lt;/b&gt;</code> を入れると、HTMLとして解釈されるでしょうか?</li>
+    <li><code>&lt;script&gt;alert(1)&lt;/script&gt;</code> や <code>&lt;img src=x onerror=alert(1)&gt;</code> を試しましょう。</li>
+    <li><code>alert(document.cookie)</code> で、このサイトのCookie(<code>demo_session</code>)を表示できます。実際の攻撃では、これを攻撃者のサーバーに送信します。</li>
+    <li>URL(<code>?q=...</code>)を細工して他人に開かせると、その人のブラウザで実行されます。これが「反射型」と呼ばれる理由です。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>入力をエスケープせずHTMLに埋め込むと、攻撃者のスクリプトが被害者のブラウザ上で、このサイトのオリジンとして実行されます。Cookie・セッションの窃取、画面の改ざん、偽フォームによる情報詐取などにつながります。</p>
+  <p>対策は <strong>出力時のエスケープ</strong> です。Go の <code>html/template</code> は文字列をそのまま渡せば自動でエスケープします。<code>template.HTML</code> への型変換は、信頼できる固定のHTMLにだけ使います。加えて、Cookie に <code>HttpOnly</code> を付ける、<code>Content-Security-Policy</code> ヘッダでスクリプト実行を制限する、といった多層防御も有効です。</p>
+</details>
+
+<p><a href="/xss/board">→ 格納型XSS(掲示板)へ</a></p>
+{{template "footer" .}}

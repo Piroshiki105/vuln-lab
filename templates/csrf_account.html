@@ -1,0 +1,52 @@
+{{template "header" .}}
+<h1>CSRF: アカウント</h1>
+<p>ログイン中: <strong>{{.User}}</strong>(残高: {{.Balance}} 円)</p>
+{{if .Msg}}<p style="color:green"><strong>{{.Msg}}</strong></p>{{end}}
+
+<h2>パスワード変更</h2>
+<form method="post" action="/csrf/password">
+  <p><label>新しいパスワード <input name="new_password" size="30"></label>
+  <button type="submit">変更</button></p>
+</form>
+
+<h2>送金</h2>
+<form method="post" action="/csrf/transfer">
+  <p><label>送金先 <input name="to" size="15"></label>
+  <label>金額 <input name="amount" size="10"></label>
+  <button type="submit">送金</button></p>
+</form>
+
+<h2>全員の残高</h2>
+<table border="1" cellpadding="4">
+  <tr><th>ユーザー</th><th>残高</th></tr>
+  {{range .Balances}}<tr><td>{{.Username}}</td><td>{{.Amount}}</td></tr>
+  {{end}}
+</table>
+
+<h2>攻撃を試す</h2>
+<p>ログインしたまま、別タブで罠ページ <a href="http://127.0.0.1:9090/" target="_blank">http://127.0.0.1:9090/</a> を開き、リンクを踏んでからこのページを再読み込みしてください。</p>
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>罠ページ(別ポート 9090 = 別オリジン)のフォームが、このサイトの <code>/csrf/transfer</code> や <code>/csrf/password</code> に POST しています。</li>
+    <li>ブラウザは送信先のサイトの Cookie を自動で付けます。リクエストを出したのがどのサイトかは関係ありません。</li>
+    <li>送金後に残高、パスワード変更後に再ログインで確認してみましょう。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>サーバーが「Cookie が正しい = 本人が意図して操作した」と見なすと、攻撃者のページ経由で送られたリクエストも本人の操作として処理されます。被害者はリンクを開くだけで、送金やパスワード変更を実行されてしまいます。</p>
+  <p>対策は複数あり、組み合わせるのが基本です。</p>
+  <ul>
+    <li><strong>CSRFトークン</strong>: フォームに推測不能なトークンを埋め込み、サーバーで検証する。</li>
+    <li><strong>SameSite Cookie</strong>: <code>SameSite=Lax</code> または <code>Strict</code> を指定する(同一サイト扱いの別ポートからは防げない点に注意)。</li>
+    <li><strong>Origin / Referer 検証</strong>: 自サイト以外からの POST を拒否する。</li>
+    <li><strong>再認証</strong>: パスワード変更や送金では、現在のパスワードの再入力を求める。</li>
+  </ul>
+</details>
+
+<form method="post" action="/csrf/logout" style="display:inline"><button type="submit">ログアウト</button></form>
+<form method="post" action="/csrf/reset" style="display:inline"><button type="submit">残高とパスワードを初期状態に戻す</button></form>
+{{template "footer" .}}

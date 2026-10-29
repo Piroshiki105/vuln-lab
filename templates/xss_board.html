@@ -1,0 +1,51 @@
+{{template "header" .}}
+<h1>XSS: 格納型(掲示板)</h1>
+<p>誰でも書き込める掲示板です。投稿内容はDBに保存され、ページを開いた全員に表示されます。</p>
+
+<form method="post" action="/xss/board">
+  <p><label>名前 <input name="name" size="20"></label></p>
+  <p><label>本文<br><textarea name="body" rows="3" cols="50"></textarea></label></p>
+  <p><button type="submit">投稿</button></p>
+</form>
+
+<h2>ワンクリックで試す</h2>
+<form method="post" action="/xss/board" style="display:inline">
+  <input type="hidden" name="name" value="攻撃者">
+  <input type="hidden" name="body" value="<script>alert('stored: ' + document.cookie)</script>">
+  <button class="btn" type="submit">スクリプトを投稿する</button>
+</form>
+
+<h2>投稿一覧</h2>
+{{range .Comments}}
+<div style="border:1px solid #888; padding:8px; margin:8px 0">
+  <div><strong>{{.Name}}</strong> <small>{{.CreatedAt}}</small></div>
+  <div>{{.Body}}</div>
+</div>
+{{else}}
+<p>投稿はありません。</p>
+{{end}}
+
+<form method="post" action="/xss/board/reset" style="margin-top:16px">
+  <button type="submit">掲示板を初期状態に戻す</button>
+  <small>(悪意ある投稿でページが壊れたときの復旧用)</small>
+</form>
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>本文に <code>&lt;script&gt;alert('stored')&lt;/script&gt;</code> を投稿し、ページを再読み込みしてみましょう。</li>
+    <li>反射型と違い、URLを細工しなくても、ページを開いた人全員が被害を受けます。</li>
+    <li>名前欄も同じ脆弱性を持っています。</li>
+    <li><code>&lt;img src=x onerror="alert(document.cookie)"&gt;</code> で、閲覧者のCookieを表示できます。</li>
+    <li>実行されたスクリプトでページ全体を書き換えたり、偽のログインフォームを表示したりすることもできます。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>保存されたデータはDBに残り続けるため、一度の投稿で、その後ページを開く全員が攻撃を受けます。反射型のように被害者にリンクを踏ませる必要がないので、より影響が大きくなります。</p>
+  <p>対策は反射型と同じく <strong>出力時のエスケープ</strong> です。保存する値ではなく、HTMLに出力する時点で、文脈(本文・属性・URL・JavaScript)に合ったエスケープを行います。投稿にHTMLの一部を許可したい場合は、サニタイズ用ライブラリで許可リスト方式にします。<code>HttpOnly</code> Cookie と <code>Content-Security-Policy</code> も併用します。</p>
+</details>
+
+<p><a href="/xss/reflected">→ 反射型XSSへ</a></p>
+{{template "footer" .}}
