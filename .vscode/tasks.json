@@ -1,0 +1,37 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // CSRF の罠ページ(別モジュール trap/)を起動する。launch.json の preLaunchTask から使う。
+            // バックグラウンドで動かし続け、起動ログが出た時点で「準備完了」とみなす。
+            "label": "go: start trap server",
+            "type": "shell",
+            "command": "go",
+            "args": [
+                "run",
+                "."
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/trap"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "go",
+                "pattern": {
+                    "regexp": "^$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^$",
+                    "endsPattern": "trap server listening on"
+                }
+            },
+            "presentation": {
+                "reveal": "silent",
+                "panel": "dedicated"
+            }
+        }
+    ]
+}

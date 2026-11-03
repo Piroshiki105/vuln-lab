@@ -5,13 +5,14 @@
 公開文書: <a href="/path/view?file=welcome.txt">welcome.txt</a> / <a href="/path/view?file=faq.txt">faq.txt</a></p>
 
 <form method="get" action="/path/view">
-  <p><label>ファイル名 <input name="file" value="{{.File}}" size="40"></label>
+  <p><label>ファイル名 <input id="file" name="file" value="{{.File}}" size="40"></label>
   <button type="submit">表示</button></p>
 </form>
 
-<h2>ワンクリックで試す</h2>
-<a class="btn" href="/path/view?file=..%2Forg2%2Fcontract.txt">他組織の文書を見る</a>
-<a class="btn" href="/path/view?file=..%2F..%2Fsecret%2Fapi_key.txt">プロジェクト外の秘密ファイルを見る</a>
+<h2>入力例を入れる</h2>
+<p><small>ボタンを押すと上の欄に入力例が入ります。送信ボタンを押すと実行されます。</small></p>
+<button type="button" class="btn" onclick="document.getElementById('file').value = '../org2/contract.txt'">他組織の文書を見る</button>
+<button type="button" class="btn" onclick="document.getElementById('file').value = '../../secret/api_key.txt'">プロジェクト外の秘密ファイルを見る</button>
 
 {{if .Path}}
 <h2>読み込んだパス</h2>

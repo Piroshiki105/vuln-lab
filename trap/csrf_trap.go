@@ -1,26 +1,21 @@
 package main
 
-import (
-	"log"
-	"net/http"
-)
+import "net/http"
 
 // このファイルは CSRF の「攻撃者のサイト(罠ページ)」を模したもの。
-// 本体(8080)とは別ポート(9090)で起動し、別オリジンから本体へリクエストを送らせる。
-// 127.0.0.1 の別ポートは「同一サイト」扱いのため、SameSite=Lax 既定のブラウザでも Cookie が送られる。
-// 本体と同様、127.0.0.1 にのみバインドする。
+// 被害者のブラウザから、標的アプリ(8080)へ勝手に POST させる自動送信フォームを返す。
+// サーバーの起動(main)やトップページは main.go にある。
 
-const trapListenAddr = "127.0.0.1:9090"
-
-const trapIndexHTML = `<!DOCTYPE html>
-<html lang="ja"><head><meta charset="utf-8"><title>罠ページ - vuln-lab</title></head>
+// trapCSRFIndexHTML は CSRF の罠ページの入口。
+const trapCSRFIndexHTML = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><title>CSRFの罠 - vuln-lab</title></head>
 <body>
 <div style="background:#b00020;color:#fff;padding:8px 16px;font-weight:bold">⚠️ 攻撃者サイトを模した罠ページです(ローカル学習専用)</div>
 <h1>おめでとうございます!</h1>
 <p>(本来は魅力的な見せかけの内容で、被害者にリンクを踏ませます)</p>
 <ul>
-  <li><a href="/gift">プレゼントを受け取る</a>(開くと自動で送金フォームが送信される)</li>
-  <li><a href="/survey">アンケートに答える</a>(開くと自動でパスワード変更フォームが送信される)</li>
+  <li><a href="/csrf/gift">プレゼントを受け取る</a>(開くと自動で送金フォームが送信される)</li>
+  <li><a href="/csrf/survey">アンケートに答える</a>(開くと自動でパスワード変更フォームが送信される)</li>
 </ul>
 <p>先に <a href="http://127.0.0.1:8080/csrf/login" target="_blank">http://127.0.0.1:8080/csrf/login</a> でログインしてから開いてください。</p>
 </body></html>`
@@ -45,21 +40,9 @@ const trapSurveyHTML = `<!DOCTYPE html>
 </form>
 </body></html>`
 
-func trapPage(body string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(body))
-	}
-}
-
-func startTrapServer() {
-	mux := http.NewServeMux()
-	mux.Handle("GET /{$}", trapPage(trapIndexHTML))
-	mux.Handle("GET /gift", trapPage(trapGiftHTML))
-	mux.Handle("GET /survey", trapPage(trapSurveyHTML))
-
-	go func() {
-		log.Printf("trap server listening on http://%s", trapListenAddr)
-		log.Println(http.ListenAndServe(trapListenAddr, mux))
-	}()
+// registerCSRFTrapRoutes は CSRF の罠ページを登録する。
+func registerCSRFTrapRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /csrf/{$}", trapPage(trapCSRFIndexHTML))
+	mux.Handle("GET /csrf/gift", trapPage(trapGiftHTML))
+	mux.Handle("GET /csrf/survey", trapPage(trapSurveyHTML))
 }

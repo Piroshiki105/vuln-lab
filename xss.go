@@ -1,9 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"html/template"
 	"net/http"
+	"time"
 )
 
 // このファイルは XSS(クロスサイトスクリプティング)を体験するための「意図的に脆弱な」実装を含む。
@@ -11,33 +11,10 @@ import (
 // その型変換(VULNERABLE)を、学習のためにわざと行っている。
 
 type Comment struct {
-	ID        int
+	ID        string
 	Name      template.HTML
 	Body      template.HTML
 	CreatedAt string
-}
-
-func initXSSDB(db *sql.DB) error {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS comments (
-		id         INTEGER PRIMARY KEY AUTOINCREMENT,
-		name       TEXT NOT NULL,
-		body       TEXT NOT NULL,
-		created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-	)`); err != nil {
-		return err
-	}
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM comments`).Scan(&n); err != nil {
-		return err
-	}
-	if n == 0 {
-		if _, err := db.Exec(`INSERT INTO comments (name, body) VALUES
-			('山田', 'はじめまして。掲示板のテスト投稿です。'),
-			('佐藤', 'よろしくお願いします!')`); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // setDemoCookie は XSS で盗み出す対象となる、デモ用のセッションCookieを発行する。
@@ -51,7 +28,7 @@ func setDemoCookie(w http.ResponseWriter) {
 	})
 }
 
-func xssReflectedHandler(tmpl *template.Template) http.HandlerFunc {
+func xssReflectedHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setDemoCookie(w)
 		data := map[string]any{"Title": "XSS: 反射型"}
@@ -63,15 +40,15 @@ func xssReflectedHandler(tmpl *template.Template) http.HandlerFunc {
 			data["Searched"] = true
 		}
 
-		render(w, tmpl, "xss_reflected.html", data)
+		render(w, "xss_reflected.html", data)
 	}
 }
 
-func xssBoardHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
+func xssBoardHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setDemoCookie(w)
 
-		rows, err := db.Query(`SELECT id, name, body, created_at FROM comments ORDER BY id`)
+		rows, err := db.Query(`SELECT id, name, body, created_at FROM comments ORDER BY created_at, id`)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -80,15 +57,15 @@ func xssBoardHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
 
 		var comments []Comment
 		for rows.Next() {
-			var id int
-			var name, body, createdAt string
+			var id, name, body string
+			var createdAt time.Time
 			if err := rows.Scan(&id, &name, &body, &createdAt); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			// VULNERABLE: 保存された投稿を template.HTML に変換し、エスケープせず出力している。
 			// 投稿に含まれたスクリプトが、ページを開いた全員のブラウザで実行される(格納型XSS)。
-			comments = append(comments, Comment{id, template.HTML(name), template.HTML(body), createdAt})
+			comments = append(comments, Comment{id, template.HTML(name), template.HTML(body), createdAt.Format("2006-01-02 15:04:05")})
 		}
 		if err := rows.Err(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -96,11 +73,11 @@ func xssBoardHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
 		}
 
 		data := map[string]any{"Title": "XSS: 格納型(掲示板)", "Comments": comments}
-		render(w, tmpl, "xss_board.html", data)
+		render(w, "xss_board.html", data)
 	}
 }
 
-func xssBoardPostHandler(db *sql.DB) http.HandlerFunc {
+func xssBoardPostHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := r.FormValue("name")
 		body := r.FormValue("body")
@@ -120,13 +97,13 @@ func xssBoardPostHandler(db *sql.DB) http.HandlerFunc {
 
 // xssBoardResetHandler は掲示板を初期状態に戻す。
 // 悪意ある投稿でページが操作不能になった場合の復旧用(学習環境の利便のため)。
-func xssBoardResetHandler(db *sql.DB) http.HandlerFunc {
+func xssBoardResetHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if _, err := db.Exec(`DELETE FROM comments`); err != nil {
+		if _, err := db.Exec(`DELETE FROM comments WHERE TRUE`); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := initXSSDB(db); err != nil {
+		if err := initComments(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -135,15 +112,9 @@ func xssBoardResetHandler(db *sql.DB) http.HandlerFunc {
 }
 
 // registerXSSRoutes は XSS(反射型・格納型)関連のルートを登録する。
-func registerXSSRoutes(mux *http.ServeMux, db *sql.DB) error {
-	if err := initXSSDB(db); err != nil {
-		return err
-	}
-	reflectedTmpl := parseTemplate("xss_reflected.html")
-	boardTmpl := parseTemplate("xss_board.html")
-	mux.Handle("GET /xss/reflected", xssReflectedHandler(reflectedTmpl))
-	mux.Handle("GET /xss/board", xssBoardHandler(db, boardTmpl))
-	mux.Handle("POST /xss/board", xssBoardPostHandler(db))
-	mux.Handle("POST /xss/board/reset", xssBoardResetHandler(db))
-	return nil
+func registerXSSRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /xss/reflected", xssReflectedHandler())
+	mux.Handle("GET /xss/board", xssBoardHandler())
+	mux.Handle("POST /xss/board", xssBoardPostHandler())
+	mux.Handle("POST /xss/board/reset", xssBoardResetHandler())
 }

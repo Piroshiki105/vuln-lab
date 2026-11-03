@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"html/template"
 	"net/http"
 	"os/exec"
 	"time"
@@ -12,7 +11,7 @@ import (
 // 入力値をシェルのコマンド文字列に連結している箇所(VULNERABLE)は、学習のためにわざとそうしている。
 // 実際にシェルが実行されるため、サーバーは 127.0.0.1 にのみバインドしている。
 
-func cmdiPingHandler(tmpl *template.Template) http.HandlerFunc {
+func cmdiPingHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data := map[string]any{"Title": "コマンドインジェクション: ping"}
 
@@ -39,12 +38,11 @@ func cmdiPingHandler(tmpl *template.Template) http.HandlerFunc {
 			}
 		}
 
-		render(w, tmpl, "cmdi_ping.html", data)
+		render(w, "cmdi_ping.html", data)
 	}
 }
 
 // registerCmdiRoutes はコマンドインジェクション関連のルートを登録する。
 func registerCmdiRoutes(mux *http.ServeMux) {
-	tmpl := parseTemplate("cmdi_ping.html")
-	mux.Handle("GET /cmdi/ping", cmdiPingHandler(tmpl))
+	mux.Handle("GET /cmdi/ping", cmdiPingHandler())
 }

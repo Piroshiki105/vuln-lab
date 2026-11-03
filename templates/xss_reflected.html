@@ -3,18 +3,26 @@
 <p>キーワード検索の画面です。入力した文字列が、そのまま結果の画面に表示されます。ページ内で JavaScript を実行できるでしょうか?</p>
 
 <form method="get" action="/xss/reflected">
-  <label>キーワード <input name="q" size="40"></label>
+  <label>キーワード <input id="q" name="q" size="40"></label>
   <button type="submit">検索</button>
 </form>
 
-<h2>ワンクリックで試す</h2>
-<a class="btn" href="/xss/reflected?q=%3Cimg%20src%3Dx%20onerror%3Dalert(document.cookie)%3E">Cookieを表示する</a>
-<a class="btn" href="/xss/reflected?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E">スクリプトを実行する</a>
+<h2>入力例を入れる</h2>
+<p><small>ボタンを押すと上の欄に入力例が入ります。送信ボタンを押すと実行されます。</small></p>
+<button type="button" class="btn" onclick="document.getElementById('q').value = '<img src=x onerror=alert(document.cookie)>'">Cookieを表示する</button>
+<button type="button" class="btn" onclick="document.getElementById('q').value = '<script>alert(1)</script>'">スクリプトを実行する</button>
 
 {{if .Searched}}
 <h2>検索結果</h2>
 <p>「{{.Q}}」に一致する項目は見つかりませんでした。</p>
 {{end}}
+
+<h2>攻撃を試す</h2>
+<p>攻撃者サイト(別ポート 9090 = 別オリジン)の画面を、別タブで開いて並べて操作できます。罠サーバーは別途起動が必要です(<code>cd trap &amp;&amp; go run .</code>)。</p>
+<ul>
+  <li><a href="http://127.0.0.1:9090/xss/" target="_blank" rel="noopener">罠ページ</a>: 被害者に踏ませるリンクがあります。</li>
+  <li><a href="http://127.0.0.1:9090/xss/loot" target="_blank" rel="noopener">戦利品ページ</a>: 盗み出された Cookie が表示されます(3秒ごとに自動更新)。</li>
+</ul>
 
 <details>
   <summary>ヒント</summary>
@@ -23,6 +31,7 @@
     <li><code>&lt;script&gt;alert(1)&lt;/script&gt;</code> や <code>&lt;img src=x onerror=alert(1)&gt;</code> を試しましょう。</li>
     <li><code>alert(document.cookie)</code> で、このサイトのCookie(<code>demo_session</code>)を表示できます。実際の攻撃では、これを攻撃者のサーバーに送信します。</li>
     <li>URL(<code>?q=...</code>)を細工して他人に開かせると、その人のブラウザで実行されます。これが「反射型」と呼ばれる理由です。</li>
+    <li>攻撃者が実際にどうやってこのリンクを踏ませ、盗んだCookieを回収するかは、罠ページ <a href="http://127.0.0.1:9090/xss/">http://127.0.0.1:9090/xss/</a> で体験できます(別ポートで起動する攻撃者サイト)。</li>
   </ul>
 </details>
 

@@ -1,0 +1,25 @@
+{
+  "name": "vuln-lab",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/vuln-lab",
+  "forwardPorts": [8080, 9090],
+  "portsAttributes": {
+    "8080": { "label": "vuln-lab" },
+    "9090": { "label": "trap" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "renesaarsoo.sql-formatter-vsc"
+      ],
+      "settings": {
+        "[sql]": {
+          "editor.defaultFormatter": "ReneSaarsoo.sql-formatter-vsc"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "go mod download"
+}

@@ -1,0 +1,29 @@
+CREATE TABLE IF NOT EXISTS organizations (id INT64 NOT NULL, name STRING (MAX) NOT NULL) PRIMARY KEY (id);
+
+-- VULNERABLE: パスワードを平文で保存している(ハッシュ化していない)。
+CREATE TABLE IF NOT EXISTS accounts (
+    id INT64 NOT NULL,
+    username STRING (MAX) NOT NULL,
+    password STRING (MAX) NOT NULL,
+    role STRING (MAX) NOT NULL
+) PRIMARY KEY (id);
+
+CREATE TABLE IF NOT EXISTS products (
+    id INT64 NOT NULL,
+    name STRING (MAX) NOT NULL,
+    description STRING (MAX) NOT NULL,
+    price INT64 NOT NULL,
+    is_public INT64 NOT NULL DEFAULT (1)
+) PRIMARY KEY (id);
+
+CREATE TABLE IF NOT EXISTS csrf_balances (
+    username STRING (MAX) NOT NULL,
+    balance INT64 NOT NULL
+) PRIMARY KEY (username);
+
+CREATE TABLE IF NOT EXISTS comments (
+    id STRING (36) NOT NULL DEFAULT (GENERATE_UUID ()),
+    name STRING (MAX) NOT NULL,
+    body STRING (MAX) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP())
+) PRIMARY KEY (id);

@@ -2,9 +2,7 @@ package main
 
 import (
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
-	"html/template"
 	"net/http"
 	"strconv"
 	"sync"
@@ -27,18 +25,6 @@ type Balance struct {
 	Amount   int
 }
 
-func initCSRFDB(db *sql.DB) error {
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS csrf_balances (
-		username TEXT PRIMARY KEY,
-		balance  INTEGER NOT NULL
-	)`); err != nil {
-		return err
-	}
-	_, err := db.Exec(`INSERT OR IGNORE INTO csrf_balances (username, balance) VALUES
-		('admin', 1000000), ('alice', 100000), ('bob', 50000)`)
-	return err
-}
-
 func csrfCurrentUser(r *http.Request) string {
 	c, err := r.Cookie(csrfCookieName)
 	if err != nil {
@@ -49,56 +35,61 @@ func csrfCurrentUser(r *http.Request) string {
 	return csrfSessions[c.Value]
 }
 
-func csrfLoginHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
+const csrfLoginTitle = "CSRF: ログイン"
+
+// csrfLoginPageHandler はログインフォームを表示する。ログイン済みならアカウント画面へ移す。
+func csrfLoginPageHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data := map[string]any{"Title": "CSRF: ログイン"}
-
-		if r.Method == http.MethodPost {
-			username := r.FormValue("username")
-			password := r.FormValue("password")
-
-			// このログイン処理自体はプレースホルダを使っており、SQLインジェクションは起きない。
-			var n int
-			err := db.QueryRow(`SELECT COUNT(*) FROM accounts WHERE username = ? AND password = ?`,
-				username, password).Scan(&n)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if n == 0 {
-				data["Failed"] = true
-			} else {
-				buf := make([]byte, 16)
-				if _, err := rand.Read(buf); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				token := hex.EncodeToString(buf)
-				csrfSessionsMu.Lock()
-				csrfSessions[token] = username
-				csrfSessionsMu.Unlock()
-
-				// VULNERABLE: SameSite 属性を指定していない。また CSRFトークンも発行していない。
-				// SameSite=Strict を付けるか、フォームにトークンを埋め込んで検証するのが本来の対策。
-				http.SetCookie(w, &http.Cookie{
-					Name:     csrfCookieName,
-					Value:    token,
-					Path:     "/",
-					HttpOnly: true,
-				})
-				http.Redirect(w, r, "/csrf/account", http.StatusSeeOther)
-				return
-			}
-		} else if csrfCurrentUser(r) != "" {
+		if csrfCurrentUser(r) != "" {
 			http.Redirect(w, r, "/csrf/account", http.StatusSeeOther)
 			return
 		}
-
-		render(w, tmpl, "csrf_login.html", data)
+		render(w, "csrf_login.html", map[string]any{"Title": csrfLoginTitle})
 	}
 }
 
-func csrfAccountHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
+// csrfLoginPostHandler はログインを処理する。失敗時はフォームを再表示する。
+func csrfLoginPostHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		// このログイン処理自体はプレースホルダを使っており、SQLインジェクションは起きない。
+		var n int
+		err := db.QueryRow(`SELECT COUNT(*) FROM accounts WHERE username = ? AND password = ?`,
+			username, password).Scan(&n)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if n == 0 {
+			render(w, "csrf_login.html", map[string]any{"Title": csrfLoginTitle, "Failed": true})
+			return
+		}
+
+		buf := make([]byte, 16)
+		if _, err := rand.Read(buf); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		token := hex.EncodeToString(buf)
+		csrfSessionsMu.Lock()
+		csrfSessions[token] = username
+		csrfSessionsMu.Unlock()
+
+		// VULNERABLE: SameSite 属性を指定していない。また CSRFトークンも発行していない。
+		// SameSite=Strict を付けるか、フォームにトークンを埋め込んで検証するのが本来の対策。
+		http.SetCookie(w, &http.Cookie{
+			Name:     csrfCookieName,
+			Value:    token,
+			Path:     "/",
+			HttpOnly: true,
+		})
+		http.Redirect(w, r, "/csrf/account", http.StatusSeeOther)
+	}
+}
+
+func csrfAccountHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := csrfCurrentUser(r)
 		if user == "" {
@@ -138,7 +129,7 @@ func csrfAccountHandler(db *sql.DB, tmpl *template.Template) http.HandlerFunc {
 			"Balances": balances,
 			"Msg":      r.URL.Query().Get("msg"),
 		}
-		render(w, tmpl, "csrf_account.html", data)
+		render(w, "csrf_account.html", data)
 	}
 }
 
@@ -154,7 +145,7 @@ func csrfLogoutHandler() http.HandlerFunc {
 	}
 }
 
-func csrfPasswordHandler(db *sql.DB) http.HandlerFunc {
+func csrfPasswordHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// VULNERABLE: Cookie でログイン中と分かれば実行する。リクエストが本当にこのサイトの
 		// フォームから送られたものか(CSRFトークン / Origin / Referer)を確認していない。
@@ -177,7 +168,7 @@ func csrfPasswordHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-func csrfTransferHandler(db *sql.DB) http.HandlerFunc {
+func csrfTransferHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// VULNERABLE: パスワード変更と同様、リクエストの出所を確認していない。
 		user := csrfCurrentUser(r)
@@ -231,10 +222,10 @@ func csrfTransferHandler(db *sql.DB) http.HandlerFunc {
 
 // csrfResetHandler は残高とパスワードを初期状態に戻す(学習環境の復旧用)。
 // SQLインジェクション画面のアカウントのパスワードも元に戻る。
-func csrfResetHandler(db *sql.DB) http.HandlerFunc {
+func csrfResetHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		stmts := []string{
-			`DELETE FROM csrf_balances`,
+			`DELETE FROM csrf_balances WHERE TRUE`,
 			`UPDATE accounts SET password = 'S3cr3t-Adm1n!' WHERE username = 'admin'`,
 			`UPDATE accounts SET password = 'password1' WHERE username = 'alice'`,
 			`UPDATE accounts SET password = 'qwerty' WHERE username = 'bob'`,
@@ -245,7 +236,7 @@ func csrfResetHandler(db *sql.DB) http.HandlerFunc {
 				return
 			}
 		}
-		if err := initCSRFDB(db); err != nil {
+		if err := initCSRFBalances(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -253,19 +244,13 @@ func csrfResetHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-// registerCSRFRoutes は CSRF 関連のルートを登録する。罠ページは startTrapServer が別途起動する。
-func registerCSRFRoutes(mux *http.ServeMux, db *sql.DB) error {
-	if err := initCSRFDB(db); err != nil {
-		return err
-	}
-	loginTmpl := parseTemplate("csrf_login.html")
-	accountTmpl := parseTemplate("csrf_account.html")
-	mux.Handle("GET /csrf/login", csrfLoginHandler(db, loginTmpl))
-	mux.Handle("POST /csrf/login", csrfLoginHandler(db, loginTmpl))
-	mux.Handle("GET /csrf/account", csrfAccountHandler(db, accountTmpl))
+// registerCSRFRoutes は CSRF 関連のルートを登録する。罠ページは別モジュール trap/ にあり、別プロセスで起動する。
+func registerCSRFRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /csrf/login", csrfLoginPageHandler())
+	mux.Handle("POST /csrf/login", csrfLoginPostHandler())
+	mux.Handle("GET /csrf/account", csrfAccountHandler())
 	mux.Handle("POST /csrf/logout", csrfLogoutHandler())
-	mux.Handle("POST /csrf/password", csrfPasswordHandler(db))
-	mux.Handle("POST /csrf/transfer", csrfTransferHandler(db))
-	mux.Handle("POST /csrf/reset", csrfResetHandler(db))
-	return nil
+	mux.Handle("POST /csrf/password", csrfPasswordHandler())
+	mux.Handle("POST /csrf/transfer", csrfTransferHandler())
+	mux.Handle("POST /csrf/reset", csrfResetHandler())
 }

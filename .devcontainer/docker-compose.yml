@@ -1,0 +1,28 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/go:1.26-bookworm
+    volumes:
+      - ..:/workspaces/vuln-lab:cached
+    command: sleep infinity
+    environment:
+      # 設定するとメール画面が smtp4dev へ実際に送信する。未設定ならプレビュー表示のみ。
+      SMTP_ADDR: smtp4dev:25
+      # アプリが接続する Cloud Spanner エミュレーター。実際の Google Cloud には接続しない。
+      SPANNER_EMULATOR_HOST: spanner:9010
+    depends_on:
+      - smtp4dev
+      - spanner
+
+  smtp4dev:
+    image: rnwood/smtp4dev:latest
+    ports:
+      # 受信メールの確認用 UI。ホストの 127.0.0.1 にのみ公開する。
+      # SMTP(25) はコンテナ間ネットワークでのみ使い、ホストには公開しない。
+      - "127.0.0.1:5000:80"
+
+  spanner:
+    image: gcr.io/cloud-spanner-emulator/emulator:latest
+    ports:
+      # gRPC。devcontainer の外から go run する場合に使う。ホストの 127.0.0.1 にのみ公開する。
+      # データはメモリ上だけで、コンテナを再起動すると消える。
+      - "127.0.0.1:9010:9010"

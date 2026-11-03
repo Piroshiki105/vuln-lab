@@ -1,7 +1,6 @@
 package main
 
 import (
-	"html/template"
 	"log"
 	"net/http"
 )
@@ -18,12 +17,16 @@ import (
 // 生のバイト列として自分で組み立てることで、その保護を意図的にバイパスしている。
 // 本来のGoコードでは、ここまでしないとこの脆弱性は作れない、という点も学びになる。
 
-func headerRedirectHandler(tmpl *template.Template) http.HandlerFunc {
+func headerRedirectHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		next := r.URL.Query().Get("next")
 		if next == "" {
-			data := map[string]any{"Title": "HTTPヘッダインジェクション: リダイレクト"}
-			render(w, tmpl, "header_redirect.html", data)
+			// 注入した Set-Cookie の効果を画面で確認できるよう、受け取った Cookie を一覧表示する。
+			data := map[string]any{
+				"Title":   "HTTPヘッダインジェクション: リダイレクト",
+				"Cookies": r.Cookies(),
+			}
+			render(w, "header_redirect.html", data)
 			return
 		}
 
@@ -60,6 +63,5 @@ func headerRedirectHandler(tmpl *template.Template) http.HandlerFunc {
 
 // registerHeaderRoutes は HTTPヘッダインジェクション関連のルートを登録する。
 func registerHeaderRoutes(mux *http.ServeMux) {
-	tmpl := parseTemplate("header_redirect.html")
-	mux.Handle("GET /header/redirect", headerRedirectHandler(tmpl))
+	mux.Handle("GET /header/redirect", headerRedirectHandler())
 }

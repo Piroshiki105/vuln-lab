@@ -3,13 +3,14 @@
 <p>ホスト名を入力すると、サーバーが <code>ping</code> を1回実行して結果を表示します。ping 以外のコマンドも実行させられるでしょうか?</p>
 
 <form method="get" action="/cmdi/ping">
-  <p><label>ホスト <input name="host" value="{{.Host}}" size="40" placeholder="127.0.0.1"></label>
+  <p><label>ホスト <input id="host" name="host" value="{{.Host}}" size="40" placeholder="127.0.0.1"></label>
   <button type="submit">ping</button></p>
 </form>
 
-<h2>ワンクリックで試す</h2>
-<a class="btn" href="/cmdi/ping?host=127.0.0.1%3B%20id">コマンド注入(id)</a>
-<a class="btn" href="/cmdi/ping?host=127.0.0.1%20%26%26%20cat%20%2Fetc%2Fhostname">コマンド注入(&amp;&amp; cat)</a>
+<h2>入力例を入れる</h2>
+<p><small>ボタンを押すと上の欄に入力例が入ります。送信ボタンを押すと実行されます。</small></p>
+<button type="button" class="btn" onclick="document.getElementById('host').value = '127.0.0.1; id'">コマンド注入(id)</button>
+<button type="button" class="btn" onclick="document.getElementById('host').value = '127.0.0.1 &amp;&amp; cat /etc/hostname'">コマンド注入(&amp;&amp; cat)</button>
 
 {{if .Command}}
 <h2>実行されたコマンド</h2>

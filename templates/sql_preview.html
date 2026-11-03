@@ -1,0 +1,35 @@
+{{define "sqlpreview"}}
+<h2>SQLプレビュー</h2>
+<p><small>入力すると、強調された部分(入力値)がそのままSQLに連結されます。</small></p>
+<pre id="sql-preview" style="white-space: pre-wrap; word-break: break-all"></pre>
+<script>
+(function () {
+  const fixed = {{.SQLFixed}};
+  const ids = {{.SQLInputs}};
+  const pre = document.getElementById('sql-preview');
+  function update() {
+    pre.textContent = '';
+    fixed.forEach(function (text, i) {
+      pre.appendChild(document.createTextNode(text));
+      if (i < ids.length) {
+        const mark = document.createElement('mark');
+        mark.textContent = document.getElementById(ids[i]).value;
+        pre.appendChild(mark);
+      }
+    });
+  }
+  window.refreshSQLPreview = update;
+  ids.forEach(function (id) {
+    document.getElementById(id).addEventListener('input', update);
+  });
+  update();
+})();
+</script>
+{{end}}
+
+{{define "sqlexecuted"}}
+{{if .QueryParts}}
+<h2>実行されたSQL</h2>
+<pre style="white-space: pre-wrap; word-break: break-all">{{range .QueryParts}}{{if .Input}}<mark>{{.Text}}</mark>{{else}}{{.Text}}{{end}}{{end}}</pre>
+{{end}}
+{{end}}
