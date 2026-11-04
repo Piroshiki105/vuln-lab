@@ -2,7 +2,7 @@
 # 本体は Cloud Spanner エミュレーターに接続する。SPANNER_EMULATOR_HOST が未設定なら 127.0.0.1:9010 を使う。
 # 許可されないホストは、本体側(checkEmulatorHost)が起動時に拒否する。
 
-# up で `wait -n` と `jobs` を使うため bash を指定する(既定の sh では使えない)。
+# up で `jobs` を使うため bash を指定する(既定の sh では使えない)。
 SHELL := /bin/bash
 COMPOSE := docker compose -f .devcontainer/docker-compose.yml
 export SPANNER_EMULATOR_HOST ?= 127.0.0.1:9010
@@ -12,12 +12,16 @@ export SPANNER_EMULATOR_HOST ?= 127.0.0.1:9010
 # 本体と罠サーバーを同時に起動する。どちらかが終了したら、もう一方も止める(Ctrl-C で両方止まる)。
 # go run は SIGTERM を子プロセス(実際のサーバー)へ転送しないため、set -m でジョブごとに
 # プロセスグループを分け、終了時にグループ単位(kill -- -PGID)で止める。
+# macOS 標準の Bash 3.2 には wait -n がないため、実行中ジョブ数を監視する。
 up:
 	@set -m; \
-	trap 'for p in $$(jobs -p); do kill -- -$$p 2>/dev/null; done' INT TERM EXIT; \
+	trap 'for p in $$(jobs -pr); do kill -- -$$p 2>/dev/null; done' INT TERM EXIT; \
 	(cd trap && go run .) & \
+	trap_pid=$$!; \
 	go run . & \
-	wait -n
+	app_pid=$$!; \
+	while [ "$$(jobs -pr | wc -l)" -eq 2 ]; do sleep 0.1; done; \
+	if jobs -pr | grep -qx "$$app_pid"; then wait "$$trap_pid"; else wait "$$app_pid"; fi
 
 # 本体のみ起動する。
 run:
