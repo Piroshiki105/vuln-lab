@@ -1,6 +1,6 @@
 {
   "name": "vuln-lab",
-  "dockerComposeFile": "docker-compose.yml",
+  "dockerComposeFile": ["../compose.yml", "docker-compose.yml"],
   "service": "app",
   "workspaceFolder": "/workspaces/vuln-lab",
   "forwardPorts": [8080, 9090],

@@ -1,0 +1,47 @@
+{{template "header" .}}
+<h1>アクセス制御の欠落: プロフィール</h1>
+<p>ログイン中: <strong>{{.User}}</strong>(あなたの id: {{.MyID}})</p>
+
+<h2>プロフィール(id={{.A.ID}})</h2>
+<table border="1" cellpadding="4">
+  <tr><th>ユーザー名</th><td>{{.A.Username}}</td></tr>
+  <tr><th>メールアドレス</th><td>{{.A.Email}}</td></tr>
+  <tr><th>権限</th><td>{{.A.Role}}</td></tr>
+  <tr><th>残高</th><td>{{.A.Balance}} 円</td></tr>
+</table>
+<p><a href="/authz/profile">自分のプロフィールに戻る</a></p>
+
+<div class="inside">
+  <h2>サーバー内部で何が起きたか</h2>
+  <pre>URL の id         : <span class="inj">{{.A.ID}}</span>
+あなた(ログイン中)の id: {{.MyID}}</pre>
+  {{if .Other}}<p style="color:#b00020"><strong>2つが一致していません。</strong>サーバーは一致を確認せず、URL の id のアカウントを表示しました。</p>
+  {{else}}<p>2つは一致しています(自分のプロフィール)。URL の id を書き換えると、サーバーは確認なしに他人のものを表示します。</p>{{end}}
+</div>
+
+<h2>攻撃を試す</h2>
+<p>アドレスバーの URL の <code>id</code> を書き換えてみてください(<code>/authz/profile?id=1</code> など)。また、管理者向けの画面へのリンクはここにはありませんが、URL を推測して開いてみてください。</p>
+<a class="btn" href="/authz/profile?id=1">id=1(admin)を見る</a>
+<a class="btn" href="/authz/profile?id=3">id=3(bob)を見る</a>
+<a class="btn" href="/authz/admin">管理画面を開く</a>
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>このプロフィール画面は、URL の <code>id</code> に対応するアカウントを、誰がログインしているかに関係なく表示します(認可制御の欠落、IPA 11-(ii))。</li>
+    <li>管理画面は <code>/authz/admin</code> にあります。管理者でなくても開けるでしょうか。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>ログインさえしていれば、<code>id</code> を差し替えるだけで他人の情報を見られます。認証(誰か)と認可(その操作を許されているか)は別の仕組みで、認可を忘れると、利用者どうしの越境や、一般利用者による管理者機能の利用が起きます。</p>
+  <ul>
+    <li>利用者の id を URL・POST のパラメータから取らず、セッションの利用者から決める。</li>
+    <li>パラメータの id を使う場合は、ログイン中の利用者の id(または閲覧を許可されたもの)と一致するか毎回確認する。</li>
+    <li>管理者向け機能は、リンクを隠すのではなく、リクエストごとにサーバー側で権限(role)を確認する。</li>
+  </ul>
+</details>
+
+<form method="post" action="/authz/logout"><button type="submit">ログアウト</button></form>
+{{template "footer" .}}

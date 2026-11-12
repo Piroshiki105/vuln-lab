@@ -17,7 +17,7 @@ import (
 // 別人(被害者)のもとへ、正規の窓口を差出人とした偽のメールが届く。
 //
 // SMTPサーバーに渡す直前の生のメッセージは画面に表示する。環境変数 SMTP_ADDR が
-// 設定されている場合(devcontainer の smtp4dev など)は、そのメッセージを実際に送信する。
+// 設定されている場合(make 経由で起動した場合の smtp4dev など)は、そのメッセージを実際に送信する。
 // 未設定なら送信せず、プレビュー表示のみ行う。
 // 安全のため、送信先のSMTPサーバーは smtp4dev / localhost / 127.0.0.1 に限定している。
 
@@ -28,7 +28,7 @@ const (
 	mailEnvelopeFrom = "contact-form@vuln-lab.local"
 	mailSupportFrom  = "サポート窓口 <support@example.com>"
 
-	// smtp4dev の受信メール確認画面(devcontainer でホストの 127.0.0.1 に公開している)。
+	// smtp4dev の受信メール確認画面(compose.yml でホストの 127.0.0.1 に公開している)。
 	mailViewerURL = "http://127.0.0.1:5000"
 )
 
@@ -83,7 +83,7 @@ const mailContactTitle = "メールヘッダインジェクション: お問い�
 // mailContactPageHandler はお問い合わせフォームを表示する。
 func mailContactPageHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		render(w, "mail_contact.html", map[string]any{"Title": mailContactTitle})
+		render(w, r, "mail_contact.html", map[string]any{"Title": mailContactTitle})
 	}
 }
 
@@ -125,7 +125,7 @@ func mailContactPostHandler() http.HandlerFunc {
 			}
 		}
 
-		render(w, "mail_contact.html", data)
+		render(w, r, "mail_contact.html", data)
 	}
 }
 

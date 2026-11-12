@@ -26,7 +26,7 @@ func headerRedirectHandler() http.HandlerFunc {
 				"Title":   "HTTPヘッダインジェクション: リダイレクト",
 				"Cookies": r.Cookies(),
 			}
-			render(w, "header_redirect.html", data)
+			render(w, r, "header_redirect.html", data)
 			return
 		}
 

@@ -46,5 +46,16 @@
   のように値を別引数で渡します。加えて、パスワードはハッシュ化(bcrypt 等)して保存し、DBエラーを画面に出さないようにします。</p>
 </details>
 
+<details>
+  <summary>本来の対策(コード例)</summary>
+  <p><small>参考用のコードです。この画面では実行されません(この画面は意図的に脆弱なままです)。</small></p>
+  <pre>// 入力値を SQL 文に連結せず、プレースホルダ(?)で渡す。
+var n int
+err := db.QueryRow(
+    `SELECT COUNT(*) FROM accounts WHERE username = ? AND password = ?`,
+    username, password).Scan(&amp;n)
+// さらに、パスワードは平文で保存せず、bcrypt などでハッシュ化して照合する。</pre>
+</details>
+
 <p><a href="/sqli/search">→ 商品検索へ</a></p>
 {{template "footer" .}}

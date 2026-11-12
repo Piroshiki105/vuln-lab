@@ -1,0 +1,35 @@
+{{template "header" .}}
+<h1>{{.Title}}</h1>
+<p>{{.Intro}}</p>
+
+<form method="post" action="{{.Action}}">
+  <p><label>メールアドレス <input id="email" name="email" size="30" placeholder="alice@example.com"></label></p>
+  <p><button type="submit">ログイン</button></p>
+</form>
+
+<h2>入力例を入れる</h2>
+<p><small>ボタンを押すと上の欄に入力例が入ります。ログインボタンを押すと送信されます。</small></p>
+<button type="button" class="btn" onclick="document.getElementById('email').value = 'alice@example.com'">alice@example.com を入力</button>
+<button type="button" class="btn" onclick="document.getElementById('email').value = 'bob@example.com'">bob@example.com を入力</button>
+
+{{if .Failed}}
+<p style="color:#b00020"><strong>ログイン失敗:</strong> メールアドレスが登録されていません。</p>
+{{end}}
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>パスワード欄がありません。他人のメールアドレスを入力すると、どうなるでしょうか。</li>
+    <li>メールアドレスは名刺や問い合わせメールなどで他人にも知られ得る情報です。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>メールアドレスだけで個人情報を閲覧できると、アドレスを知っている人なら誰でもなりすませます。メールアドレスは「みだりに第三者に知らせてはならない情報」ではないため、アクセス制御として成立しません(IPA 11-(i))。</p>
+  <ul>
+    <li>パスワードなど、本人だけが知る秘密情報の入力を必須にする(パスワードはハッシュ化して保存する)。</li>
+    <li>必要なら多要素認証を併用する。</li>
+  </ul>
+</details>
+{{template "footer" .}}

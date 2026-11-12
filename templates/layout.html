@@ -13,16 +13,54 @@
     border: none; border-radius: 4px; font: inherit; cursor: pointer;
   }
   .btn:hover { background: #222; }
+  .nav { background: #f2f2f2; border-bottom: 1px solid #ccc; padding: 6px 16px; font-size: 14px; }
+  .badge { display: inline-block; background: #fff; border: 1px solid #888; border-radius: 10px; padding: 0 8px; margin-left: 6px; font-size: 12px; }
+  .who { float: right; }
+  .inside { background: #eef6ff; border: 1px solid #7aa7d9; border-radius: 6px; padding: 4px 16px 12px; margin: 16px 0; }
+  .inside h2 { margin-top: 8px; font-size: 18px; }
+  .inside .inj { background: #ffd6d6; font-weight: bold; }
+  dialog { max-width: 560px; border: 2px solid #b00020; border-radius: 6px; }
+  dialog h3 { margin-top: 0; }
 </style>
 </head>
 <body>
 <div class="warning">⚠️ これは意図的に脆弱なアプリです。ローカル学習専用です。公開・本番利用は絶対にしないでください。</div>
+<div class="nav"><a href="/">目次</a>{{if .IPA}}<span class="badge">IPA {{.IPA}}</span>{{end}}{{if .CWE}}<span class="badge">{{.CWE}}</span>{{end}}
+  <span class="who">{{if .SharedUser}}共通ログイン(CSRF・クリックジャッキング・認可): <strong>{{.SharedUser}}</strong>{{else}}共通ログイン: なし{{end}}
+  {{if .SessionUser}} / セッション画面: <strong>{{.SessionUser}}</strong>{{end}}</span></div>
 <main>
 {{end}}
 
 {{define "footer"}}
 <p><a href="/">トップへ戻る</a></p>
 </main>
+<dialog id="trap-dialog">
+  <h3 id="trap-title"></h3>
+  <p><strong>このページがすること</strong><br><span id="trap-what"></span></p>
+  <p><strong>開いたあとに見るところ</strong><br><span id="trap-check"></span></p>
+  <p id="trap-warn" style="color:#b00020" hidden><strong>罠サーバー(9090)に接続できません。</strong><code>make up</code> か <code>cd trap &amp;&amp; go run .</code> で起動してください。</p>
+  <p>
+    <a id="trap-go" class="btn" target="_blank" rel="noopener" onclick="document.getElementById('trap-dialog').close()">開く(別タブ)</a>
+    <button type="button" class="btn" onclick="document.getElementById('trap-dialog').close()">やめる</button>
+  </p>
+</dialog>
+<script>
+  // 罠ページへ移る前に、そのページが何をするかを説明するダイアログを出す。
+  function showTrap(a) {
+    var d = document.getElementById('trap-dialog');
+    if (!d.showModal) return true;
+    document.getElementById('trap-title').textContent = a.dataset.title;
+    document.getElementById('trap-what').textContent = a.dataset.what;
+    document.getElementById('trap-check').textContent = a.dataset.check;
+    document.getElementById('trap-go').href = a.href;
+    // 罠サーバーが起動していなければ、開く前に気づけるよう警告を出す(応答の中身は読まず、接続できるかだけを見る)。
+    var warn = document.getElementById('trap-warn');
+    warn.hidden = true;
+    fetch(new URL(a.href).origin + '/', {mode: 'no-cors'}).catch(function () { warn.hidden = false; });
+    d.showModal();
+    return false;
+  }
+</script>
 </body>
 </html>
 {{end}}

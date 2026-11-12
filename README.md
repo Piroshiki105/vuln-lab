@@ -22,8 +22,11 @@
 | CSRF | パスワード変更/送金フォーム `/csrf/account` + 攻撃者の罠ページ(別オリジン `:9090`) |
 | コマンドインジェクション | ping 画面 `/cmdi/ping` |
 | パストラバーサル | ファイル閲覧画面 `/path/view`(マルチテナント越境あり) |
-| メールヘッダインジェクション | お問い合わせフォーム `/mail/contact`(入力したアドレスへの自動返信メールを組み立ててプレビュー表示。devcontainer では smtp4dev に実際に送信) |
+| メールヘッダインジェクション | お問い合わせフォーム `/mail/contact`(入力したアドレスへの自動返信メールを組み立ててプレビュー表示。`SMTP_ADDR` 設定時は smtp4dev に実際に送信) |
 | HTTPヘッダインジェクション | リダイレクト `/header/redirect`(`http.Hijacker` で `net/http` の保護をバイパス) |
+| アクセス制御・認可制御の欠落 | メールアドレスのみのログイン `/authz/login`、プロフィール `/authz/profile?id=N`(IDOR)、管理画面 `/authz/admin`(権限チェックなし) |
+| クリックジャッキング | ログイン `/clickjack/login`、設定画面 `/clickjack/settings` + 攻撃者の罠ページ `:9090/clickjack/` |
+| セッション管理の不備 | ログイン `/session/login`、マイページ `/session/home`(連番のセッションID、固定化、HttpOnly なし)+ 攻撃者の罠ページ `:9090/session/` |
 
 各画面には、ページ内に「攻撃のヒント」「なぜ危険か / 本来どう直すか」の解説を折りたたみで載せています。まずは解説を開かずに自力で攻撃を試し、詰まったら開いてください。
 
@@ -37,8 +40,13 @@
 - [x] 段階4: CSRF(ログイン機能、状態変更フォーム、罠ページ)
 - [x] 段階5: コマンドインジェクション(ping)とパストラバーサル(ファイル閲覧)
 - [x] 段階6: 各画面の解説文、本 README への起動方法・攻撃例・対策の考え方の追記
-- [x] 段階7: メールヘッダインジェクション(お問い合わせフォーム。プレビュー表示。devcontainer では smtp4dev へ実送信)
+- [x] 段階7: メールヘッダインジェクション(お問い合わせフォーム。プレビュー表示。`make up` では smtp4dev へ実送信)
 - [x] 段階8: HTTPヘッダインジェクション/レスポンス分割(`http.Hijacker` で `net/http` の保護を意図的にバイパス)
+- [x] 段階9: クリックジャッキング(IPA「安全なウェブサイトの作り方」1.9。framing を禁止しない設定画面と、透明 iframe の罠ページ)
+- [x] 段階10: アクセス制御や認可制御の欠落(同 1.11。メールアドレスのみのログイン、id 差し替え、管理画面の権限チェック欠落)
+- [x] 段階11: セッション管理の不備(同 1.4。連番のセッションID、固定化、HttpOnly なしの Cookie)
+- [x] 段階12: 学習しやすさの改善(共通ヘッダの IPA/CWE バッジとログイン表示、罠ページ移動前の解説ダイアログ(罠サーバーの起動確認つき)、「サーバー内部で何が起きたか」パネル(cmdi・パストラバーサル・認可・セッション・CSRF)、ログイン画面と管理画面の入力例ボタン、トップの「学習の進め方」、「本来の対策」のコード例(SQLi・cmdi・XSS・CSRF・セッション))
+- 同 1.10 バッファオーバーフローは、Go がメモリ安全な言語のため再現せず、静的な解説ページ `/bof` のみ
 
 ## プロジェクト構成
 
@@ -50,28 +58,12 @@
 
 DB は Cloud Spanner エミュレーターに接続する(実際の Google Cloud には接続しない)。`SPANNER_EMULATOR_HOST` が未設定、または `spanner` / `localhost` / `127.0.0.1` 以外のホストなら、起動を拒否する。
 
-### devcontainer で起動する(推奨)
+### ホストで起動する(デフォルト)
 
-`.devcontainer/` に、アプリ用コンテナ、Cloud Spanner エミュレーター、[smtp4dev](https://github.com/rnwood/smtp4dev)(開発用SMTPサーバー)を同時に起動する設定がある。VS Code の「Dev Containers: Reopen in Container」で開き、コンテナ内で次を実行する。
-
-```sh
-go run .
-```
-
-- アプリ: http://127.0.0.1:8080/ (VS Code がポート転送する)。罠ページは http://127.0.0.1:9090/ (別モジュール `trap/` のため `go run .` では起動しない。別のターミナルで `cd trap && go run .` を実行するか、VS Code の起動構成 `Launch vuln-lab + Trap` を使う。`make` が使える環境なら `make up` で本体と同時に起動できる)
-- 受信メールの確認(smtp4dev UI): http://127.0.0.1:5000/
-- `SPANNER_EMULATOR_HOST=spanner:9010` と `SMTP_ADDR=smtp4dev:25` が自動で設定される
-- 起動時に `sql/` のスキーマを適用し、テーブルが空なら初期データを投入する(インスタンスとデータベースはエミュレーター上に自動で作られる)
-- `/mail/contact` のメールは smtp4dev に実際に送信される。smtp4dev は受信したメールを保存するだけで、外部には中継しない
-- `SMTP_ADDR` のホストは `smtp4dev` / `localhost` / `127.0.0.1` に限定している(実在のSMTPサーバーへ誤って送信しないため)。未設定ならメールはプレビュー表示のみ
-- SMTP(25)はコンテナ間のみ。Spanner(9010)と smtp4dev の UI(5000)はホストの `127.0.0.1` にのみ公開する
-
-### devcontainer を使わずに起動する
-
-エミュレーターだけをコンテナで起動し、ホストから `go run .` する。`Makefile` に起動用のターゲットがある(`SPANNER_EMULATOR_HOST` は未設定なら `127.0.0.1:9010` を使う)。
+エミュレーターと smtp4dev(開発用SMTPサーバー)を Docker compose(`compose.yml`)で起動し、アプリはホストから `go run` する。`Makefile` に起動用のターゲットがある。`SPANNER_EMULATOR_HOST` は未設定なら `127.0.0.1:9010`、`SMTP_ADDR` は未設定なら `127.0.0.1:2525` を使う。
 
 ```sh
-make emulator   # Spanner エミュレーターを起動(Docker が必要)
+make emulator   # Spanner エミュレーターと smtp4dev を起動(Docker が必要)
 make up         # 本体(8080)と罠サーバー(9090)を同時に起動。Ctrl-C で両方止まる
 ```
 
@@ -80,18 +72,27 @@ make up         # 本体(8080)と罠サーバー(9090)を同時に起動。Ctrl-
 | `make up` | 本体と罠サーバーを同時に起動する。どちらかが終了したら、もう一方も止める |
 | `make run` | 本体のみ起動する |
 | `make trap` | 罠サーバーのみ起動する |
-| `make emulator` / `make emulator-down` | Spanner エミュレーターを起動 / 停止する |
+| `make emulator` / `make emulator-down` | Spanner エミュレーターと smtp4dev を起動 / 停止する |
 | `make vet` | 本体と `trap/` の両方で `go vet` を実行する |
+
+- アプリ: http://127.0.0.1:8080/ 、罠ページ: http://127.0.0.1:9090/ (別モジュール `trap/` のため `go run .` では起動しない。`make up` で同時に起動するか、別のターミナルで `cd trap && go run .` を実行する。VS Code の起動構成 `Launch vuln-lab + Trap` でも起動できる)
+- 受信メールの確認(smtp4dev UI): http://127.0.0.1:5000/
+- 起動時に `sql/` のスキーマを適用し、テーブルが空なら初期データを投入する(インスタンスとデータベースはエミュレーター上に自動で作られる)
+- `/mail/contact` のメールは smtp4dev に実際に送信される。smtp4dev は受信したメールを保存するだけで、外部には中継しない。メールをプレビュー表示のみにしたい場合は `SMTP_ADDR= make up` のように空にして起動する
+- `SMTP_ADDR` のホストは `smtp4dev` / `localhost` / `127.0.0.1` に限定している(実在のSMTPサーバーへ誤って送信しないため)
+- Spanner(9010)、smtp4dev の SMTP(2525)と UI(5000)は、ホストの `127.0.0.1` にのみ公開する
 
 `make` を使わない場合は、次のとおり。罠サーバーは別モジュール(`trap/`)なので、別のターミナルで起動する。
 
 ```sh
-docker compose -f .devcontainer/docker-compose.yml up -d spanner
-SPANNER_EMULATOR_HOST=127.0.0.1:9010 go run .
+docker compose up -d spanner smtp4dev
+SPANNER_EMULATOR_HOST=127.0.0.1:9010 SMTP_ADDR=127.0.0.1:2525 go run .
 cd trap && go run .   # 別のターミナルで
 ```
 
-この方法ではメールは `SMTP_ADDR` が未設定なのでプレビュー表示のみ。メールの実送信も試す場合は devcontainer を使う(smtp4dev の SMTP ポートはホストに公開していないため)。
+### devcontainer で起動する(任意)
+
+VS Code の Dev Containers を使える環境向け。`.devcontainer/` は、ルートの `compose.yml` に、アプリ用コンテナ(`app`)の差分を重ねる構成になっている。「Dev Containers: Reopen in Container」で開き、コンテナ内で `go run .` を実行する。`SPANNER_EMULATOR_HOST=spanner:9010` と `SMTP_ADDR=smtp4dev:25` が自動で設定される。ポートは VS Code が転送する。
 
 現在のページ:
 - `/`(トップ)
@@ -108,6 +109,9 @@ cd trap && go run .   # 別のターミナルで
 - `/path/view`(パストラバーサル: `docs/` 配下のファイル閲覧)
 - `/mail/contact`(メールヘッダインジェクション: お問い合わせフォーム。`SMTP_ADDR` 設定時のみ smtp4dev に実送信、未設定ならプレビューのみ)
 - `/header/redirect`(HTTPヘッダインジェクション: リダイレクト。`http.Hijacker` で生のレスポンスを組み立てる)
+- `/authz/login`(アクセス制御・認可制御の欠落: メールアドレスだけでログイン。セッションは CSRF 画面と共通)、`/authz/profile`(id を差し替えられるプロフィール)、`/authz/admin`(権限チェックのない管理画面)
+- `/clickjack/login`(クリックジャッキング: ログイン。セッションは CSRF 画面と共通で、表示だけ分けている)と `/clickjack/settings`(プロフィール公開ボタン。罠ページは http://127.0.0.1:9090/clickjack/ )
+- `/session/login`(セッション管理の不備: ログイン。専用の Cookie `sid` を使い、ログイン前にもIDを発行する)と `/session/home`(マイページ。罠ページは http://127.0.0.1:9090/session/ )
 
 XSS の画面では、盗み出す対象として `HttpOnly` なしのデモ用 Cookie(`demo_session`)を発行します。
 
@@ -115,6 +119,7 @@ XSS の画面では、盗み出す対象として `HttpOnly` なしのデモ用 
 
 攻撃を試した結果、画面が壊れたりデータが変わったりしても、次の方法で初期状態に戻せます。
 
+- 主なデータをまとめてリセット: トップページの「全データを初期状態に戻す」ボタン(`POST /reset-all`。CSRF の残高・パスワード、XSS 掲示板、クリックジャッキングの公開状態、認可の権限を戻す)
 - 全体をまとめてリセット: エミュレーターのコンテナを再起動する(データはメモリ上だけなので消える)。続けてアプリを再起動すると初期データが入る(最も確実)
 - 掲示板のみ: `/xss/board` の「掲示板を初期状態に戻す」ボタン
 - CSRFの残高・パスワードのみ: `/csrf/account` の「残高とパスワードを初期状態に戻す」ボタン(`/sqli/login` の `admin` 等のパスワードも一緒に戻る)
@@ -225,6 +230,58 @@ XSS の画面では、盗み出す対象として `HttpOnly` なしのデモ用 
 Go の `net/http` は `w.Header().Set` や `http.Redirect` を使う限りこの注入を防ぐため、この画面は `http.Hijacker` で接続を乗っ取り、意図的にその保護をバイパスしている。
 
 **本来の対策**: `http.Hijacker` で生レスポンスを自作しない(標準APIに任せる)。リダイレクト先に改行を含めない。リダイレクト先を許可リスト化する。
+
+</details>
+
+<details>
+<summary>クリックジャッキングの答え</summary>
+
+1. `/clickjack/login` で `alice` / `password1` としてログインする(ログインしたままにする)。
+2. 同じブラウザの別タブで http://127.0.0.1:9090/clickjack/ を開き、「景品に応募する」を押す。
+3. `/clickjack/settings` を再読み込みすると、プロフィールが「公開中」になっている(押したのは、透明な iframe 内の本物のボタン)。
+4. 罠ページの URL に `?debug=1` を付けると、iframe を半透明にして重なりを確認できる。
+5. 「プロフィールを非公開に戻す」ボタンで初期状態に戻せる。
+
+CSRF と違い、本物のページ上で本人がクリックしているため、CSRFトークンや Cookie の検証では防げない。
+
+**本来の対策**: `X-Frame-Options: DENY`(または `SAMEORIGIN`)と `Content-Security-Policy: frame-ancestors 'none'`(または `'self'`)を付ける。重要な操作ではパスワード再入力など、クリックだけでは完了しない確認を挟む。
+
+</details>
+
+<details>
+<summary>アクセス制御・認可制御の欠落の答え</summary>
+
+**メールアドレスのみのログイン(`/authz/login`)**
+- パスワード欄がない。`alice@example.com` や `admin@example.com`(`ユーザー名@example.com`)を入れるだけで、その人としてログインできる
+
+**id の差し替え(`/authz/profile?id=N`)**
+- `alice@example.com` でログインし、URL を `/authz/profile?id=1` に変えると、管理者(`admin`)のメールアドレス・権限・残高が見える。`id=3` なら `bob`
+
+**管理画面の強制ブラウジング(`/authz/admin`)**
+- 一般利用者の `alice` でログインしたまま `/authz/admin` を開くと、全アカウントが見え、「管理者にする」で自分を昇格できる(画面を開かず `curl -b 'csrf_session=...' -d id=2 http://127.0.0.1:8080/authz/admin/promote` でも可)
+- 「権限を初期状態に戻す」ボタンで元に戻せる
+
+**本来の対策**: パスワード等の秘密情報による認証を必須にする(11-(i))。利用者の id は URL ではなくセッションから決めるか、ログイン中の本人の id と一致するかを毎回確認する(11-(ii))。管理者向け機能は、リンクを隠すだけでなく、リクエストごとにサーバー側で role を確認する。
+
+</details>
+
+<details>
+<summary>セッション管理の不備の答え</summary>
+
+**セッションIDの推測**
+1. `curl -i -c /dev/null http://127.0.0.1:8080/session/login` を数回実行すると、`Set-Cookie: sid=1001`、`1002`、… と連番で発行される。
+2. 実際の利用者(例: `alice`)がログインした直後に、攻撃者が `curl -b sid=番号 http://127.0.0.1:8080/session/home` を前後の番号で試すと、その利用者のマイページが開ける。
+
+**セッションIDの固定化**
+1. 攻撃者が `/session/login` を開いて `sid` を 1 つ受け取る(または `31337` のように自分で決める)。
+2. 被害者に `http://127.0.0.1:8080/session/login?sid=31337` を踏ませる(罠ページ http://127.0.0.1:9090/session/ のリンク)。
+3. 被害者がそのままログインする。ログイン後もIDが変わらない。
+4. 攻撃者が `curl -b sid=31337 http://127.0.0.1:8080/session/home` を実行すると、被害者としてマイページが開ける。
+
+**盗用**
+- `/session/home` の「JavaScript から読める Cookie」欄に `sid` が見える(`HttpOnly` なし)。XSS の画面で任意のスクリプトを動かせれば `document.cookie` で盗める。
+
+**本来の対策**: セッションIDは `crypto/rand` で十分な長さの乱数にする。ログイン成功時にIDを発行し直す。URL のIDを受け付けない。Cookie に `HttpOnly` / `Secure` / `SameSite` を付け、サイト全体を HTTPS にする。ログアウト時にサーバー側のセッションを破棄する。
 
 </details>
 

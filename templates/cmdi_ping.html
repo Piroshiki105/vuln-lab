@@ -13,8 +13,14 @@
 <button type="button" class="btn" onclick="document.getElementById('host').value = '127.0.0.1 &amp;&amp; cat /etc/hostname'">コマンド注入(&amp;&amp; cat)</button>
 
 {{if .Command}}
-<h2>実行されたコマンド</h2>
-<pre>{{.Command}}</pre>
+<div class="inside">
+  <h2>サーバー内部で何が起きたか</h2>
+  <p>サーバーは、固定のコマンドに入力値(赤い部分)をそのまま連結し、<code>sh -c</code> に渡しました。</p>
+  <pre>sh -c "<span>{{.Prefix}}</span><span class="inj">{{.Host}}</span>"</pre>
+  <p>組み立てられたコマンド文字列全体:</p>
+  <pre>{{.Command}}</pre>
+  <p>シェルは <code>;</code> <code>&amp;&amp;</code> <code>|</code> などで文字列を複数のコマンドに分けて実行します。ping 1つのつもりが、入力次第で複数のコマンドになります。</p>
+</div>
 <h2>出力</h2>
 <pre>{{.Output}}</pre>
 {{end}}
@@ -41,6 +47,20 @@
     <li><strong>そもそも外部コマンドを避ける</strong>: ライブラリ(<code>net</code> パッケージ等)で代替できないか検討する。</li>
     <li><strong>権限の最小化</strong>: アプリの実行ユーザーの権限を絞る。</li>
   </ul>
+</details>
+
+<details>
+  <summary>本来の対策(コード例)</summary>
+  <p><small>参考用のコードです。この画面では実行されません(この画面は意図的に脆弱なままです)。</small></p>
+  <pre>// シェルを経由せず、コマンドと引数を分けて渡す(sh -c を使わない)。
+// ホスト名は許可リストで検証し、先頭が "-" のものはオプションと解釈されるので拒否する。
+var hostRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$`)
+
+if !hostRe.MatchString(host) {
+    http.Error(w, "ホスト名が不正です", http.StatusBadRequest)
+    return
+}
+out, err := exec.CommandContext(ctx, "ping", "-c", "1", "-W", "2", host).CombinedOutput()</pre>
 </details>
 
 <p><a href="/path/view">→ ファイル閲覧(パストラバーサル)へ</a></p>

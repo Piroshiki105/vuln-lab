@@ -11,6 +11,9 @@ import (
 // 入力値をシェルのコマンド文字列に連結している箇所(VULNERABLE)は、学習のためにわざとそうしている。
 // 実際にシェルが実行されるため、サーバーは 127.0.0.1 にのみバインドしている。
 
+// cmdiPrefix は入力値の前に付く固定部分。画面の「内部で何が起きたか」で入力部分と見分けるために定数にしている。
+const cmdiPrefix = "ping -c 1 -W 2 "
+
 func cmdiPingHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		data := map[string]any{"Title": "コマンドインジェクション: ping"}
@@ -22,7 +25,7 @@ func cmdiPingHandler() http.HandlerFunc {
 			// ; && | ` $() などのシェルのメタ文字で、任意のコマンドを続けて実行できる。
 			// 本来は sh -c を使わず exec.Command("ping", "-c", "1", host) のように引数を分け、
 			// host も許可リスト(正規表現)で検証する。
-			command := "ping -c 1 -W 2 " + host
+			command := cmdiPrefix + host
 
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
@@ -32,13 +35,14 @@ func cmdiPingHandler() http.HandlerFunc {
 
 			data["Host"] = host
 			data["Command"] = command
+			data["Prefix"] = cmdiPrefix
 			data["Output"] = string(out)
 			if err != nil {
 				data["Err"] = err.Error()
 			}
 		}
 
-		render(w, "cmdi_ping.html", data)
+		render(w, r, "cmdi_ping.html", data)
 	}
 }
 

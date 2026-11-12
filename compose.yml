@@ -1,0 +1,15 @@
+services:
+  smtp4dev:
+    image: rnwood/smtp4dev:latest
+    ports:
+      # 受信メールの確認用 UI。ホストの 127.0.0.1 にのみ公開する。
+      - "127.0.0.1:5000:80"
+      # SMTP。ホストから go run する場合に使う。ホストの 127.0.0.1 にのみ公開する。
+      - "127.0.0.1:2525:25"
+
+  spanner:
+    image: gcr.io/cloud-spanner-emulator/emulator:latest
+    ports:
+      # gRPC。ホストから go run する場合に使う。ホストの 127.0.0.1 にのみ公開する。
+      # データはメモリ上だけで、コンテナを再起動すると消える。
+      - "127.0.0.1:9010:9010"

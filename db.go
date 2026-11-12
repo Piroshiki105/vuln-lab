@@ -28,7 +28,7 @@ var allowedEmulatorHosts = map[string]bool{"spanner": true, "localhost": true, "
 func checkEmulatorHost() error {
 	hostport := os.Getenv("SPANNER_EMULATOR_HOST")
 	if hostport == "" {
-		return errors.New("SPANNER_EMULATOR_HOST が未設定です(例: 127.0.0.1:9010。devcontainer では自動で設定される)")
+		return errors.New("SPANNER_EMULATOR_HOST が未設定です(例: 127.0.0.1:9010。make 経由なら自動で設定される)")
 	}
 	host, _, err := net.SplitHostPort(hostport)
 	if err != nil {

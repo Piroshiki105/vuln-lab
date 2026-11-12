@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -35,21 +36,65 @@ func csrfCurrentUser(r *http.Request) string {
 	return csrfSessions[c.Value]
 }
 
-const csrfLoginTitle = "CSRF: ログイン"
+// loginConfig はログイン画面の表示と遷移先。CSRF 画面とクリックジャッキング画面で
+// ログイン処理(セッションは共通)を共有しつつ、画面ごとに説明文と戻り先を変えるためのもの。
+type loginConfig struct {
+	Title  string // 見出しとページタイトル
+	Intro  string // 画面の説明文
+	Action string // フォームの送信先(この画面の POST ルート)
+	Next   string // ログイン済み・ログイン成功後の遷移先
+	IPA    string // 画面に出す IPA 項番
+	CWE    string // 画面に出す CWE
+}
 
-// csrfLoginPageHandler はログインフォームを表示する。ログイン済みならアカウント画面へ移す。
-func csrfLoginPageHandler() http.HandlerFunc {
+func (c loginConfig) data(failed bool) map[string]any {
+	return map[string]any{"Title": c.Title, "Intro": c.Intro, "Action": c.Action, "Failed": failed, "IPA": c.IPA, "CWE": c.CWE}
+}
+
+var csrfLoginConfig = loginConfig{
+	Title:  "CSRF: ログイン",
+	Intro:  "CSRF を体験するため、まずログインします。SQLインジェクションの画面と同じアカウントを使えます(例: alice / password1)。",
+	Action: "/csrf/login",
+	Next:   "/csrf/account",
+	IPA:    "1.6",
+	CWE:    "CWE-352",
+}
+
+// loginPageHandler はログインフォームを表示する。ログイン済みなら遷移先へ移す。
+func loginPageHandler(cfg loginConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if csrfCurrentUser(r) != "" {
-			http.Redirect(w, r, "/csrf/account", http.StatusSeeOther)
+			http.Redirect(w, r, cfg.Next, http.StatusSeeOther)
 			return
 		}
-		render(w, "csrf_login.html", map[string]any{"Title": csrfLoginTitle})
+		render(w, r, "login.html", cfg.data(false))
 	}
 }
 
-// csrfLoginPostHandler はログインを処理する。失敗時はフォームを再表示する。
-func csrfLoginPostHandler() http.HandlerFunc {
+// csrfStartSession はセッションを発行して Cookie に載せる。認証方式が違う画面(authz.go)とも共有する。
+func csrfStartSession(w http.ResponseWriter, username string) error {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return err
+	}
+	token := hex.EncodeToString(buf)
+	csrfSessionsMu.Lock()
+	csrfSessions[token] = username
+	csrfSessionsMu.Unlock()
+
+	// VULNERABLE: SameSite 属性を指定していない。また CSRFトークンも発行していない。
+	// SameSite=Strict を付けるか、フォームにトークンを埋め込んで検証するのが本来の対策。
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+	})
+	return nil
+}
+
+// loginPostHandler はログインを処理する。失敗時はフォームを再表示する。
+func loginPostHandler(cfg loginConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username := r.FormValue("username")
 		password := r.FormValue("password")
@@ -63,30 +108,41 @@ func csrfLoginPostHandler() http.HandlerFunc {
 			return
 		}
 		if n == 0 {
-			render(w, "csrf_login.html", map[string]any{"Title": csrfLoginTitle, "Failed": true})
+			render(w, r, "login.html", cfg.data(true))
 			return
 		}
 
-		buf := make([]byte, 16)
-		if _, err := rand.Read(buf); err != nil {
+		if err := csrfStartSession(w, username); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		token := hex.EncodeToString(buf)
-		csrfSessionsMu.Lock()
-		csrfSessions[token] = username
-		csrfSessionsMu.Unlock()
-
-		// VULNERABLE: SameSite 属性を指定していない。また CSRFトークンも発行していない。
-		// SameSite=Strict を付けるか、フォームにトークンを埋め込んで検証するのが本来の対策。
-		http.SetCookie(w, &http.Cookie{
-			Name:     csrfCookieName,
-			Value:    token,
-			Path:     "/",
-			HttpOnly: true,
-		})
-		http.Redirect(w, r, "/csrf/account", http.StatusSeeOther)
+		http.Redirect(w, r, cfg.Next, http.StatusSeeOther)
 	}
+}
+
+// csrfLastReq は直近に受け付けた状態変更リクエストの記録。画面の「内部で何が起きたか」用。
+// VULNERABLE な処理が、実際には何を見て(何を見ずに)実行したかを学習者に見せる。
+type csrfReqInfo struct {
+	Action, Host, Origin, Referer string
+	HasCookie                     bool
+	Foreign                       bool // Origin / Referer が、このサイト以外を指している
+}
+
+var (
+	csrfLastMu  sync.Mutex
+	csrfLastReq *csrfReqInfo
+)
+
+func csrfRecordReq(r *http.Request, action string) {
+	info := &csrfReqInfo{Action: action, Host: r.Host, Origin: r.Header.Get("Origin"), Referer: r.Header.Get("Referer")}
+	_, err := r.Cookie(csrfCookieName)
+	info.HasCookie = err == nil
+	own := "http://" + r.Host
+	info.Foreign = (info.Origin != "" && info.Origin != own) ||
+		(info.Referer != "" && !strings.HasPrefix(info.Referer, own+"/"))
+	csrfLastMu.Lock()
+	csrfLastReq = info
+	csrfLastMu.Unlock()
 }
 
 func csrfAccountHandler() http.HandlerFunc {
@@ -129,11 +185,15 @@ func csrfAccountHandler() http.HandlerFunc {
 			"Balances": balances,
 			"Msg":      r.URL.Query().Get("msg"),
 		}
-		render(w, "csrf_account.html", data)
+		csrfLastMu.Lock()
+		data["LastReq"] = csrfLastReq
+		csrfLastMu.Unlock()
+		render(w, r, "csrf_account.html", data)
 	}
 }
 
-func csrfLogoutHandler() http.HandlerFunc {
+// logoutHandler はセッションを破棄し、next へ移す。
+func logoutHandler(next string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(csrfCookieName); err == nil {
 			csrfSessionsMu.Lock()
@@ -141,7 +201,7 @@ func csrfLogoutHandler() http.HandlerFunc {
 			csrfSessionsMu.Unlock()
 		}
 		http.SetCookie(w, &http.Cookie{Name: csrfCookieName, Value: "", Path: "/", MaxAge: -1})
-		http.Redirect(w, r, "/csrf/login", http.StatusSeeOther)
+		http.Redirect(w, r, next, http.StatusSeeOther)
 	}
 }
 
@@ -154,6 +214,7 @@ func csrfPasswordHandler() http.HandlerFunc {
 			http.Error(w, "ログインしてください", http.StatusUnauthorized)
 			return
 		}
+		csrfRecordReq(r, "パスワード変更")
 		newPassword := r.FormValue("new_password")
 		if newPassword == "" {
 			http.Error(w, "新しいパスワードは必須です", http.StatusBadRequest)
@@ -176,6 +237,7 @@ func csrfTransferHandler() http.HandlerFunc {
 			http.Error(w, "ログインしてください", http.StatusUnauthorized)
 			return
 		}
+		csrfRecordReq(r, "送金")
 		to := r.FormValue("to")
 		amount, err := strconv.Atoi(r.FormValue("amount"))
 		if err != nil || amount <= 0 {
@@ -246,10 +308,10 @@ func csrfResetHandler() http.HandlerFunc {
 
 // registerCSRFRoutes は CSRF 関連のルートを登録する。罠ページは別モジュール trap/ にあり、別プロセスで起動する。
 func registerCSRFRoutes(mux *http.ServeMux) {
-	mux.Handle("GET /csrf/login", csrfLoginPageHandler())
-	mux.Handle("POST /csrf/login", csrfLoginPostHandler())
+	mux.Handle("GET /csrf/login", loginPageHandler(csrfLoginConfig))
+	mux.Handle("POST /csrf/login", loginPostHandler(csrfLoginConfig))
 	mux.Handle("GET /csrf/account", csrfAccountHandler())
-	mux.Handle("POST /csrf/logout", csrfLogoutHandler())
+	mux.Handle("POST /csrf/logout", logoutHandler("/csrf/login"))
 	mux.Handle("POST /csrf/password", csrfPasswordHandler())
 	mux.Handle("POST /csrf/transfer", csrfTransferHandler())
 	mux.Handle("POST /csrf/reset", csrfResetHandler())

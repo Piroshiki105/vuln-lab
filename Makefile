@@ -4,8 +4,11 @@
 
 # up で `jobs` を使うため bash を指定する(既定の sh では使えない)。
 SHELL := /bin/bash
-COMPOSE := docker compose -f .devcontainer/docker-compose.yml
+COMPOSE := docker compose
 export SPANNER_EMULATOR_HOST ?= 127.0.0.1:9010
+# メール画面は smtp4dev(compose.yml でホストの 127.0.0.1:2525 に公開)へ実際に送信する。
+# 許可されないホストは、本体側が拒否する。プレビューのみにしたい場合は SMTP_ADDR= (空)で起動する。
+export SMTP_ADDR ?= 127.0.0.1:2525
 
 .PHONY: up run trap emulator emulator-down vet
 
@@ -31,12 +34,12 @@ run:
 trap:
 	cd trap && go run .
 
-# Spanner エミュレーターを起動する / 停止する(Docker が必要)。
+# Spanner エミュレーターと smtp4dev を起動する / 停止する(Docker が必要)。
 emulator:
-	$(COMPOSE) up -d spanner
+	$(COMPOSE) up -d spanner smtp4dev
 
 emulator-down:
-	$(COMPOSE) stop spanner
+	$(COMPOSE) down
 
 # 本体と罠サーバーの両方で go vet を実行する。
 vet:

@@ -7,11 +7,6 @@
   <button type="submit">検索</button>
 </form>
 
-<h2>入力例を入れる</h2>
-<p><small>ボタンを押すと上の欄に入力例が入ります。送信ボタンを押すと実行されます。</small></p>
-<button type="button" class="btn" onclick="document.getElementById('q').value = '<img src=x onerror=alert(document.cookie)>'">Cookieを表示する</button>
-<button type="button" class="btn" onclick="document.getElementById('q').value = '<script>alert(1)</script>'">スクリプトを実行する</button>
-
 {{if .Searched}}
 <h2>検索結果</h2>
 <p>「{{.Q}}」に一致する項目は見つかりませんでした。</p>
@@ -20,9 +15,11 @@
 <h2>攻撃を試す</h2>
 <p>攻撃者サイト(別ポート 9090 = 別オリジン)の画面を、別タブで開いて並べて操作できます。罠サーバーは別途起動が必要です(<code>cd trap &amp;&amp; go run .</code>)。</p>
 <ul>
-  <li><a href="http://127.0.0.1:9090/xss/" target="_blank" rel="noopener">罠ページ</a>: 被害者に踏ませるリンクがあります。</li>
-  <li><a href="http://127.0.0.1:9090/xss/loot" target="_blank" rel="noopener">戦利品ページ</a>: 盗み出された Cookie が表示されます(3秒ごとに自動更新)。</li>
+  <li>罠ページ: 被害者に踏ませるリンクがあります。</li>
+  <li>戦利品ページ: 盗み出された Cookie が表示されます(3秒ごとに自動更新)。</li>
 </ul>
+<a class="btn" href="http://127.0.0.1:9090/xss/" target="_blank" rel="noopener" data-title="反射型XSSの罠ページ" data-what="攻撃者サイト(9090)のページを開きます。ページ内のリンクは、このアプリの /xss/reflected?q=… に、Cookie を送るスクリプトを仕込んだものです。検索語がエスケープされずに表示されるため、このアプリの上でスクリプトが動き、Cookie を攻撃者サーバー(9090)の /xss/steal へ送ります。" data-check="リンクを押したあと、「戦利品ページ」に、盗まれた Cookie(demo_session)が表示されることを確認します。" onclick="return showTrap(this)">罠ページを開く</a>
+<a class="btn" href="http://127.0.0.1:9090/xss/loot" target="_blank" rel="noopener" data-title="戦利品ページ" data-what="攻撃者サーバー(9090)が受け取った Cookie を、新しい順に一覧表示する、攻撃者側の画面です。3秒ごとに自動更新します。" data-check="罠ページのリンクを押したあとに開き、盗まれた demo_session の値が表示されることを確認します。" onclick="return showTrap(this)">戦利品ページを開く</a>
 
 <details>
   <summary>ヒント</summary>
@@ -39,6 +36,18 @@
   <summary>なぜ危険か / 本来どう直すか</summary>
   <p>入力をエスケープせずHTMLに埋め込むと、攻撃者のスクリプトが被害者のブラウザ上で、このサイトのオリジンとして実行されます。Cookie・セッションの窃取、画面の改ざん、偽フォームによる情報詐取などにつながります。</p>
   <p>対策は <strong>出力時のエスケープ</strong> です。Go の <code>html/template</code> は文字列をそのまま渡せば自動でエスケープします。<code>template.HTML</code> への型変換は、信頼できる固定のHTMLにだけ使います。加えて、Cookie に <code>HttpOnly</code> を付ける、<code>Content-Security-Policy</code> ヘッダでスクリプト実行を制限する、といった多層防御も有効です。</p>
+</details>
+
+<details>
+  <summary>本来の対策(コード例)</summary>
+  <p><small>参考用のコードです。この画面では実行されません(この画面は意図的に脆弱なままです)。</small></p>
+  <pre>// html/template に文字列をそのまま渡せば、出力時に自動でエスケープされる。
+// template.HTML への型変換で、ユーザー入力を「信頼済みHTML」にしない。
+tmpl.ExecuteTemplate(w, "xss_reflected.html", map[string]any{"Q": q})
+
+// 多層防御: Cookie に HttpOnly を付け、CSP でインラインスクリプトを禁止する。
+w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'")
+http.SetCookie(w, &amp;http.Cookie{Name: "demo_session", Value: v, HttpOnly: true, SameSite: http.SameSiteLaxMode})</pre>
 </details>
 
 <p><a href="/xss/board">→ 格納型XSS(掲示板)へ</a></p>

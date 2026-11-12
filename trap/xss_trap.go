@@ -39,6 +39,7 @@ const trapXSSHTML = `<!DOCTYPE html>
 </p>
 <p>標的サイトは、このリンクを開いた時のレスポンスで demo_session Cookie を発行します。Set-Cookie はスクリプトの実行前にブラウザへ反映されるため、事前に標的サイトを開いていなくても、リンクを踏むだけで Cookie を盗めます。</p>
 <p>攻撃者サーバーが受け取ったCookieは、この罠サーバーを起動したターミナルのログに出力されるほか、攻撃者の画面 <a href="/xss/loot" target="_blank">/xss/loot(戦利品)</a> でも確認できます。</p>
+<p><a style="display:inline-block;padding:6px 12px;margin:4px 8px 4px 0;background:#444;color:#fff;text-decoration:none;border-radius:4px" href="http://127.0.0.1:8080/xss/reflected" target="_blank" rel="noopener">被害者の標的画面を開く</a><a style="display:inline-block;padding:6px 12px;margin:4px 8px 4px 0;background:#444;color:#fff;text-decoration:none;border-radius:4px" href="/xss/loot" target="_blank" rel="noopener">戦利品を見る</a></p>
 </body></html>`
 
 // stolenCookie は攻撃者サーバーが受け取った1件分の窃取結果。
@@ -124,7 +125,8 @@ func xssStealHandler() http.HandlerFunc {
 
 // registerXSSTrapRoutes は反射型XSSの罠ページと窃取サーバーを登録する。
 func registerXSSTrapRoutes(mux *http.ServeMux) {
-	mux.Handle("GET /xss/{$}", trapPage(trapXSSHTML))
+	mux.Handle("GET /xss/{$}", trapPage(withNote(trapXSSHTML,
+		"下のリンクは、標的アプリの /xss/reflected?q=… に、Cookie を送るスクリプトを仕込んだものです。標的アプリが検索語をエスケープせず表示するため、被害者のブラウザで標的アプリのオリジンとしてスクリプトが動き、Cookie を 9090 の /xss/steal へ送ります。受信結果は「戦利品を見る」で確認できます。")))
 	mux.Handle("GET /xss/steal", xssStealHandler())
 	mux.Handle("GET /xss/loot", xssLootHandler())
 }

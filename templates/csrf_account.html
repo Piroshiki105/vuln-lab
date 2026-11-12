@@ -23,8 +23,22 @@
   {{end}}
 </table>
 
+<div class="inside">
+  <h2>サーバー内部で何が起きたか</h2>
+  {{with .LastReq}}
+  <p>直近に受け付けた「{{.Action}}」リクエストの中身です。</p>
+  <pre>Host   : {{.Host}}
+Origin : {{if .Origin}}{{.Origin}}{{else}}(なし){{end}}
+Referer: {{if .Referer}}{{.Referer}}{{else}}(なし){{end}}
+Cookie : {{if .HasCookie}}あり(ブラウザが自動で付けた){{else}}なし{{end}}</pre>
+  {{if .Foreign}}<p style="color:#b00020"><strong>別のサイトのページから送られたリクエストです。</strong>それでもサーバーは Cookie だけを見て、あなたの操作として実行しました。<code>Origin</code> や <code>Referer</code> を確認していないためです。</p>
+  {{else}}<p>このサイト自身の画面から送られたリクエストです。罠ページ経由だと、<code>Origin</code> / <code>Referer</code> が別のサイト(127.0.0.1:9090)になり、ここが赤く警告されます。</p>{{end}}
+  {{else}}<p>まだ送金・パスワード変更のリクエストを受け付けていません。上のフォーム、または罠ページ経由で実行すると、サーバーが受け取った <code>Origin</code> / <code>Referer</code> / Cookie がここに表示されます。</p>{{end}}
+</div>
+
 <h2>攻撃を試す</h2>
 <p>ログインしたまま、別タブで罠ページ <a href="http://127.0.0.1:9090/csrf/" target="_blank" rel="noopener">http://127.0.0.1:9090/csrf/</a> を開き、リンクを踏んでからこのページを再読み込みしてください。罠サーバーは別途起動が必要です(<code>cd trap &amp;&amp; go run .</code>)。</p>
+<a class="btn" href="http://127.0.0.1:9090/csrf/" target="_blank" rel="noopener" data-title="CSRFの罠ページ" data-what="攻撃者サイト(9090)のページを開きます。「プレゼントを受け取る」「アンケートに答える」のリンクを押すと、読み込み後に自動送信フォームが、このアプリの /csrf/transfer(bob へ 30000 円)や /csrf/password(パスワードを hacked に変更)へ POST されます。ブラウザはこのアプリの Cookie を自動で付けるので、あなたの操作として処理されます。" data-check="リンクを押したあと、このページを再読み込みして、残高やパスワード(再ログイン)が変わっていることを確認します。" onclick="return showTrap(this)">罠ページを開く</a>
 
 <details>
   <summary>ヒント</summary>
@@ -45,6 +59,24 @@
     <li><strong>Origin / Referer 検証</strong>: 自サイト以外からの POST を拒否する。</li>
     <li><strong>再認証</strong>: パスワード変更や送金では、現在のパスワードの再入力を求める。</li>
   </ul>
+</details>
+
+<details>
+  <summary>本来の対策(コード例)</summary>
+  <p><small>参考用のコードです。この画面では実行されません(この画面は意図的に脆弱なままです)。</small></p>
+  <pre>// 1) 状態を変える POST には CSRF トークンを付け、サーバーで照合する。
+//    フォームを出すときにランダムなトークンをセッションに保存して hidden で埋め込む。
+if subtle.ConstantTimeCompare([]byte(r.FormValue("csrf_token")), []byte(session.Token)) != 1 {
+    http.Error(w, "不正なリクエストです", http.StatusForbidden)
+    return
+}
+// 2) Origin ヘッダが自サイトか確認する(補助)。
+if o := r.Header.Get("Origin"); o != "" &amp;&amp; o != "http://"+r.Host {
+    http.Error(w, "不正なリクエストです", http.StatusForbidden)
+    return
+}
+// 3) Cookie に SameSite=Lax(または Strict)を付ける。
+// 4) パスワード変更などは、現在のパスワードの再入力(再認証)を求める。</pre>
 </details>
 
 <form method="post" action="/csrf/logout" style="display:inline"><button type="submit">ログアウト</button></form>

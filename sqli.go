@@ -68,7 +68,7 @@ func sqliLoginData() map[string]any {
 // sqliLoginPageHandler はログインフォームを表示する。
 func sqliLoginPageHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		render(w, "sqli_login.html", sqliLoginData())
+		render(w, r, "sqli_login.html", sqliLoginData())
 	}
 }
 
@@ -99,7 +99,7 @@ func sqliLoginPostHandler() http.HandlerFunc {
 			data["Result"] = res
 		}
 
-		render(w, "sqli_login.html", data)
+		render(w, r, "sqli_login.html", data)
 	}
 }
 
@@ -129,7 +129,7 @@ func sqliSearchHandler() http.HandlerFunc {
 			}
 		}
 
-		render(w, "sqli_search.html", data)
+		render(w, r, "sqli_search.html", data)
 	}
 }
 

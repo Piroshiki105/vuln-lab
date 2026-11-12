@@ -53,5 +53,14 @@
   のように、ワイルドカード込みの値をバインド変数として渡します。さらに、DBユーザーの権限を最小化し、エラー詳細はログにのみ残します。</p>
 </details>
 
+<details>
+  <summary>本来の対策(コード例)</summary>
+  <p><small>参考用のコードです。この画面では実行されません(この画面は意図的に脆弱なままです)。</small></p>
+  <pre>// 検索語もプレースホルダで渡す。LIKE のワイルドカードは必要に応じてエスケープする。
+rows, err := db.Query(
+    `SELECT id, name, price FROM products WHERE name LIKE ?`,
+    "%"+keyword+"%")</pre>
+</details>
+
 <p><a href="/sqli/login">→ ログインへ</a></p>
 {{template "footer" .}}

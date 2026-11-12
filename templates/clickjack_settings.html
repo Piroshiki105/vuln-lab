@@ -1,0 +1,37 @@
+{{template "header" .}}
+<h1>クリックジャッキング: 設定</h1>
+<p>ログイン中: <strong>{{.User}}</strong> / プロフィール: <strong>{{if .Public}}公開中{{else}}非公開{{end}}</strong></p>
+
+<!-- 罠ページの偽ボタンと位置を合わせやすいよう、ボタンは位置を固定している。 -->
+<form method="post" action="/clickjack/publish" style="position:absolute; left:16px; top:200px; margin:0">
+  <button type="submit" style="width:240px; height:48px; font-size:16px">プロフィールを公開する</button>
+</form>
+<div style="height:170px"></div>
+
+<h2>攻撃を試す</h2>
+<p>このページは <code>/clickjack/login</code> でログインしていないと開けません(<code>alice</code> / <code>password1</code> など)。ログインしたまま別タブで、罠ページ <a href="http://127.0.0.1:9090/clickjack/" target="_blank" rel="noopener">http://127.0.0.1:9090/clickjack/</a> を開き、「景品に応募する」を押してから、このページを再読み込みしてください。</p>
+<a class="btn" href="http://127.0.0.1:9090/clickjack/" target="_blank" rel="noopener" data-title="クリックジャッキングの罠ページ" data-what="攻撃者サイト(9090)のページが、このアプリの設定画面を透明な iframe で重ねて表示します。見せかけの「景品に応募する」ボタンの真上に、本物の「プロフィールを公開する」ボタンが重なっています。" data-check="「景品に応募する」を押したあと、このページを再読み込みして、プロフィールが「公開中」になっていることを確認します。" onclick="return showTrap(this)">罠ページを開く</a>
+<a class="btn" href="http://127.0.0.1:9090/clickjack/?debug=1" target="_blank" rel="noopener" data-title="重なりを見る(?debug=1)" data-what="同じ罠ページを、iframe を半透明にして表示します。透明な本物のページが、見せかけのボタンの上に重なっている様子が見えます。" data-check="赤い点線の枠が iframe の範囲です。見せかけのボタンと、その下にある「プロフィールを公開する」ボタンの位置が揃っていることを確認します。" onclick="return showTrap(this)">重なりを見る(?debug=1)</a>
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li>罠ページは、このページを透明な <code>iframe</code> で表示し、見せかけのボタンの真上に「プロフィールを公開する」ボタンを重ねています。</li>
+    <li>罠ページの URL に <code>?debug=1</code> を付けると、iframe を半透明にして重なりを確認できます。</li>
+    <li>被害者は本物のボタンを自分でクリックしているので、CSRFトークンや Cookie の検証では防げません。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>このページのレスポンスには、他のサイトからの <code>iframe</code> 埋め込みを禁じるヘッダがありません。そのため、攻撃者のページが透明な <code>iframe</code> で重ねて表示し、被害者に別のボタンだと思わせてクリックさせられます。実際のクリックは正規のページ上で行われるため、CSRFトークンも、Cookie による認証も通ります。</p>
+  <ul>
+    <li><strong><code>X-Frame-Options: DENY</code></strong>(同一オリジンのみ許すなら <code>SAMEORIGIN</code>)をレスポンスに付ける。</li>
+    <li><strong><code>Content-Security-Policy: frame-ancestors 'none'</code></strong>(または <code>'self'</code>)を付ける。こちらが現在の推奨で、新しいブラウザでは <code>X-Frame-Options</code> より優先される。</li>
+    <li>重要な操作では、パスワードの再入力など、画面を重ねてもクリックだけでは完了しない確認を挟む。</li>
+    <li>Cookie に <code>SameSite=Strict</code> を指定すると、別サイトの <code>iframe</code> 内にログイン状態で表示されにくくなる(同一サイト扱いの別ポートでは防げない点に注意)。</li>
+  </ul>
+</details>
+
+<form method="post" action="/clickjack/reset"><button type="submit">プロフィールを非公開に戻す</button></form>
+{{template "footer" .}}

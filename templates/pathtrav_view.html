@@ -15,8 +15,19 @@
 <button type="button" class="btn" onclick="document.getElementById('file').value = '../../secret/api_key.txt'">プロジェクト外の秘密ファイルを見る</button>
 
 {{if .Path}}
-<h2>読み込んだパス</h2>
-<pre>{{.Path}}</pre>
+<div class="inside">
+  <h2>サーバー内部で何が起きたか</h2>
+  <p>サーバーは、自組織のディレクトリに入力値を連結して、そのまま読み込みました。</p>
+  <pre>自組織のディレクトリ: {{.OrgDir}}
+入力値              : <span class="inj">{{.File}}</span>
+連結後のパス        : {{.Path}}
+実際に読んだ場所    : {{.AbsPath}}</pre>
+  {{if .Escaped}}
+  <p style="color:#b00020"><strong>自組織のディレクトリの外を読んでいます。</strong> <code>..</code> が解決され、別の場所を指しました。</p>
+  {{else}}
+  <p>自組織のディレクトリの中を読んでいます(想定どおり)。</p>
+  {{end}}
+</div>
 {{end}}
 {{if .Content}}
 <h2>内容</h2>

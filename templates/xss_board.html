@@ -52,5 +52,16 @@
   <p>対策は反射型と同じく <strong>出力時のエスケープ</strong> です。保存する値ではなく、HTMLに出力する時点で、文脈(本文・属性・URL・JavaScript)に合ったエスケープを行います。投稿にHTMLの一部を許可したい場合は、サニタイズ用ライブラリで許可リスト方式にします。<code>HttpOnly</code> Cookie と <code>Content-Security-Policy</code> も併用します。</p>
 </details>
 
+<details>
+  <summary>本来の対策(コード例)</summary>
+  <p><small>参考用のコードです。この画面では実行されません(この画面は意図的に脆弱なままです)。</small></p>
+  <pre>// 投稿を保存するときではなく、表示するときにエスケープする。
+// html/template に文字列として渡せば自動でエスケープされるので、template.HTML に変換しない。
+for _, c := range comments {
+    // c.Body は string のままテンプレートへ渡す
+}
+// 加えて、Cookie の HttpOnly と Content-Security-Policy を併用する。</pre>
+</details>
+
 <p><a href="/xss/reflected">→ 反射型XSSへ</a></p>
 {{template "footer" .}}

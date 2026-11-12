@@ -40,7 +40,7 @@ func xssReflectedHandler() http.HandlerFunc {
 			data["Searched"] = true
 		}
 
-		render(w, "xss_reflected.html", data)
+		render(w, r, "xss_reflected.html", data)
 	}
 }
 
@@ -73,7 +73,7 @@ func xssBoardHandler() http.HandlerFunc {
 		}
 
 		data := map[string]any{"Title": "XSS: 格納型(掲示板)", "Comments": comments}
-		render(w, "xss_board.html", data)
+		render(w, r, "xss_board.html", data)
 	}
 }
 

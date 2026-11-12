@@ -1,9 +1,9 @@
 {{template "header" .}}
 <h1>メールヘッダインジェクション: お問い合わせ</h1>
 <p>お問い合わせフォームです。送信すると、入力したメールアドレス宛に自動返信メールが届きます。
-devcontainer で起動している場合は、メールが smtp4dev に実際に送信され、受信した内容を
+<code>make up</code> などで SMTP_ADDR が設定されている場合は、メールが smtp4dev に実際に送信され、受信した内容を
 <a href="http://127.0.0.1:5000" target="_blank">http://127.0.0.1:5000</a> で確認できます(外部には届きません)。
-それ以外の起動方法では、送信せずプレビュー表示のみ行います。</p>
+SMTP_ADDR が未設定なら、送信せずプレビュー表示のみ行います。</p>
 <p>他人のメールアドレスを入れたとき、その人には<strong>サポート窓口を差出人とした</strong>メールが届きます。
 件名やお名前に細工をして、その人に偽の内容を届けられるでしょうか?</p>
 
@@ -34,7 +34,7 @@ devcontainer で起動している場合は、メールが smtp4dev に実際に
 <a href="{{.MailViewerURL}}" target="_blank">受信メールを開く</a>(注入したヘッダがメールの「Headers」に現れるか確認してください)</p>
 {{end}}
 {{else}}
-<p><small>SMTP_ADDR が未設定のため、実際の送信はしていません(プレビューのみ)。devcontainer で起動すると smtp4dev へ送信されます。</small></p>
+<p><small>SMTP_ADDR が未設定のため、実際の送信はしていません(プレビューのみ)。<code>make emulator</code> と <code>make up</code> で起動すると smtp4dev へ送信されます。</small></p>
 {{end}}
 {{end}}
 

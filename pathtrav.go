@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // このファイルはパストラバーサルを体験するための「意図的に脆弱な」実装を含む。
@@ -43,6 +44,11 @@ func pathtravViewHandler() http.HandlerFunc {
 
 			data["File"] = file
 			data["Path"] = path
+			// 画面の「内部で何が起きたか」用。実際に読む場所と、自組織のディレクトリの外に出たかを示す。
+			absPath, _ := filepath.Abs(path)
+			absOrg, _ := filepath.Abs(orgDir)
+			data["AbsPath"] = absPath
+			data["Escaped"] = !strings.HasPrefix(absPath+string(filepath.Separator), absOrg+string(filepath.Separator))
 
 			content, err := os.ReadFile(path)
 			if err != nil {
@@ -53,7 +59,7 @@ func pathtravViewHandler() http.HandlerFunc {
 			}
 		}
 
-		render(w, "pathtrav_view.html", data)
+		render(w, r, "pathtrav_view.html", data)
 	}
 }
 

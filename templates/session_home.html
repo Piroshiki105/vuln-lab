@@ -1,0 +1,71 @@
+{{template "header" .}}
+<h1>セッション管理の不備: マイページ</h1>
+<p>ログイン中: <strong>{{.User}}</strong> / セッションID(Cookie <code>sid</code>): <strong>{{.SID}}</strong></p>
+
+<div class="inside">
+  <h2>サーバー内部で何が起きたか</h2>
+  <p>サーバーがブラウザに送っている <code>Set-Cookie</code>:</p>
+  <pre>Set-Cookie: {{.SetCookie}}</pre>
+  <ul>
+    <li><code>HttpOnly</code> なし → JavaScript(<code>document.cookie</code>)から読めます。</li>
+    <li><code>Secure</code> なし → 平文の HTTP でも送信されます。</li>
+    <li><code>SameSite</code> なし → ブラウザの既定動作に任されます。</li>
+  </ul>
+  {{if .HasBefore}}
+  <p>ログインの前後でセッションIDがどう変わったか:</p>
+  <pre>ログイン前のID: {{if .BeforeID}}{{.BeforeID}}{{else}}(なし){{end}}
+ログイン後のID: {{.SID}}</pre>
+  {{if .SameAsPre}}<p style="color:#b00020"><strong>同じIDのままです。</strong>ログイン前に攻撃者が決めたIDを被害者に使わせれば、ログイン後は攻撃者もそのIDで本人になりすませます(固定化)。</p>
+  {{else}}<p>ログインでIDが新しくなっています。</p>{{end}}
+  {{end}}
+</div>
+
+<form method="post" action="/session/logout"><button type="submit">ログアウト</button></form>
+
+<h2>攻撃を試す</h2>
+<p>別のブラウザ(またはプライベートウィンドウ。Cookie は同じホストなら別ポートでも共有されるため)や <code>curl</code> を「攻撃者」として使い、この利用者になりすませるか試してください。</p>
+<p>JavaScript から読める Cookie: <code id="cookies"></code></p>
+<h3>攻撃者になりすます</h3>
+<p>次のコマンドで、この <code>sid</code> を使って別のクライアントからマイページを開けます。</p>
+<pre>curl -b sid={{.SID}} http://127.0.0.1:8080/session/home</pre>
+<a class="btn" href="http://127.0.0.1:9090/session/" target="_blank" rel="noopener" data-title="セッション固定化の罠ページ" data-what="攻撃者サイト(9090)のページを開きます。ページ内のリンクは /session/login?sid=31337 で、攻撃者が決めたセッションIDを、このアプリに採用させます。被害者がそのままログインしても、IDが変わりません。" data-check="リンクからログインしたあと、攻撃者役のクライアントが curl -b sid=31337 http://127.0.0.1:8080/session/home でマイページを開けることを確認します。" onclick="return showTrap(this)">固定化の罠ページを開く</a>
+<script>document.getElementById('cookies').textContent = document.cookie || '(なし)';</script>
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li><strong>推測</strong>: <code>/session/login</code> を何度か開くと、セッションIDが連番で発行されるのが分かります。別のアカウントでログインして、前後の番号の Cookie <code>sid</code> を試してください。</li>
+    <li><strong>固定化</strong>: 攻撃者が <code>/session/login</code> でIDを 1 つ受け取り、<code>/session/login?sid=そのID</code> のリンクを被害者に踏ませます。被害者がログインした後、攻撃者が同じ <code>sid</code> で <code>/session/home</code> を開いてください。罠ページは <a href="http://127.0.0.1:9090/session/" target="_blank" rel="noopener">http://127.0.0.1:9090/session/</a> にあります。</li>
+    <li><strong>盗用</strong>: Cookie に <code>HttpOnly</code> が付いていないため、上の欄のように JavaScript で読めます。XSS(<code>/xss/</code> の画面)と組み合わせると <code>sid</code> を盗めます。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>セッションIDは「それを持っている人がその利用者」という合言葉の役目をします。推測できる、外から決められる、盗まれる、のどれかが成り立つと、パスワードを知らなくてもなりすませます。</p>
+  <ul>
+    <li><strong>推測</strong>: セッションIDは暗号論的乱数(Go なら <code>crypto/rand</code>)で十分な長さ(128 ビット以上)にする。連番や時刻から作らない。</li>
+    <li><strong>固定化</strong>: ログイン成功時に必ずセッションIDを発行し直し、古いIDは破棄する。URL などで渡されたIDを受け付けない。</li>
+    <li><strong>盗用</strong>: Cookie に <code>HttpOnly</code>(JavaScript から読めなくする)、<code>Secure</code>(HTTPS のみで送る)、<code>SameSite</code> を付ける。サイト全体を HTTPS にする。IDを URL に載せない。</li>
+    <li>ログアウト時にサーバー側のセッションを破棄し、有効期限(アイドル・絶対)を設ける。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>本来の対策(コード例)</summary>
+  <p><small>参考用のコードです。この画面では実行されません(この画面は意図的に脆弱なままです)。</small></p>
+  <pre>// 1) ログイン成功時にセッションIDを必ず発行し直す(固定化対策)。
+delete(sessions, oldID)
+newID := randomID() // 2) crypto/rand で 16 バイト以上の乱数から作る(連番にしない)
+sessions[newID] = username
+
+// 3) Cookie に属性を付ける。
+http.SetCookie(w, &amp;http.Cookie{
+    Name: "sid", Value: newID, Path: "/",
+    HttpOnly: true,                 // JavaScript から読めない
+    Secure:   true,                 // HTTPS のときだけ送る
+    SameSite: http.SameSiteLaxMode, // 他サイト経由の送信を制限する
+})
+// 4) URL でセッションIDを受け取らない(?sid= を無視する)。</pre>
+</details>
+{{template "footer" .}}

@@ -27,6 +27,10 @@ func main() {
 	registerPathtravRoutes(mux)
 	registerMailRoutes(mux)
 	registerHeaderRoutes(mux)
+	registerClickjackRoutes(mux)
+	registerAuthzRoutes(mux)
+	registerSessionRoutes(mux)
+	registerBofRoutes(mux)
 
 	log.Println("WARNING: vuln-lab は意図的に脆弱なアプリです。ローカル学習専用です。公開しないでください。")
 	log.Printf("listening on http://%s", listenAddr)

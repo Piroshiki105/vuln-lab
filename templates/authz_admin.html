@@ -1,0 +1,43 @@
+{{template "header" .}}
+<h1>アクセス制御の欠落: 管理画面</h1>
+<p>ログイン中: <strong>{{.User}}</strong></p>
+
+<div class="inside">
+  <h2>サーバー内部で何が起きたか</h2>
+  <p>あなたの権限(role): <strong>{{.MyRole}}</strong></p>
+  {{if ne .MyRole "admin"}}<p style="color:#b00020"><strong>管理者ではないのに、この画面が表示されています。</strong>サーバーはログイン済みかしか確認していません。</p>
+  {{else}}<p>あなたは管理者です。一般利用者(alice / bob)でログインして同じ URL を開くと、どうなるでしょう?</p>{{end}}
+</div>
+
+<table border="1" cellpadding="4">
+  <tr><th>id</th><th>ユーザー名</th><th>メールアドレス</th><th>権限</th><th>操作</th></tr>
+  {{range .Accounts}}<tr>
+    <td>{{.ID}}</td><td>{{.Username}}</td><td>{{.Email}}</td><td>{{.Role}}</td>
+    <td>{{if ne .Role "admin"}}<form method="post" action="/authz/admin/promote" style="margin:0">
+      <input type="hidden" name="id" value="{{.ID}}"><button type="submit">管理者にする</button></form>{{end}}</td>
+  </tr>
+  {{end}}
+</table>
+
+<h2>攻撃を試す</h2>
+<p>画面のボタンを使わず、<code>POST /authz/admin/promote</code> を直接送って <code>alice</code>(id=2)を管理者にします。送信後に再読み込みします。</p>
+<button type="button" class="btn" onclick="fetch('/authz/admin/promote', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'id=2'}).then(function(){ location.reload(); })">POST で alice を昇格させる</button>
+<a class="btn" href="/authz/profile">プロフィールへ戻る</a>
+
+<details>
+  <summary>ヒント</summary>
+  <ul>
+    <li><code>alice</code> や <code>bob</code>(一般利用者)でログインしても、この画面は開けて、操作もできます。</li>
+    <li>画面を開かなくても、<code>POST /authz/admin/promote</code> に <code>id</code> を送るだけで権限を変更できます。</li>
+  </ul>
+</details>
+
+<details>
+  <summary>なぜ危険か / 本来どう直すか</summary>
+  <p>ログイン済みかしか確認していないため、一般利用者が自分を管理者に昇格できます(権限昇格)。リンクが表示されないことは防御になりません。</p>
+  <p>画面表示と更新処理の両方で、リクエストごとに「ログイン中の利用者の role が admin か」をサーバー側で確認し、違えば 403 を返します。</p>
+</details>
+
+<form method="post" action="/authz/admin/reset" style="display:inline"><button type="submit">権限を初期状態に戻す</button></form>
+<form method="post" action="/authz/logout" style="display:inline"><button type="submit">ログアウト</button></form>
+{{template "footer" .}}
